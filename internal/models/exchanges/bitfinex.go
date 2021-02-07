@@ -2,7 +2,7 @@ package exchanges
 
 import (
 	"DaruBot/internal/models"
-	utils2 "DaruBot/pkg/unils"
+	"DaruBot/pkg/tools"
 	"fmt"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/order"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/position"
@@ -54,8 +54,8 @@ func BitfinexOrderToModel(o *order.Order) *models.Order {
 		Price:          o.Price,
 		AmountCurrent:  o.Amount,
 		AmountOriginal: o.AmountOrig,
-		Date:           utils2.TimeFromMilliseconds(o.MTSCreated),
-		Updated:        utils2.TimeFromMilliseconds(o.MTSUpdated),
+		Date:           tools.TimeFromMilliseconds(o.MTSCreated),
+		Updated:        tools.TimeFromMilliseconds(o.MTSUpdated),
 		Meta:           make(map[string]interface{}),
 	}
 

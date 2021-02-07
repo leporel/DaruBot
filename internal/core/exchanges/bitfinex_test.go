@@ -1,7 +1,7 @@
 package exchanges
 
 import (
-	"DaruBot/config"
+	"DaruBot/internal/config"
 	"DaruBot/pkg/logger"
 	"context"
 	"github.com/sirupsen/logrus"

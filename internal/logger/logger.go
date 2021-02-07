@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"DaruBot/config"
+	"DaruBot/internal/config"
 	"DaruBot/pkg/logger"
 	"github.com/op/go-logging"
 	"github.com/sirupsen/logrus"

@@ -1,13 +1,13 @@
 package exchanges
 
 import (
-	"DaruBot/config"
+	"DaruBot/internal/config"
 	logger2 "DaruBot/internal/logger"
 	"DaruBot/internal/models"
 	"DaruBot/internal/models/exchanges"
 	"DaruBot/pkg/errors"
 	"DaruBot/pkg/logger"
-	"DaruBot/pkg/unils"
+	"DaruBot/pkg/tools"
 	"DaruBot/pkg/watcher"
 	"context"
 	"encoding/json"
@@ -138,7 +138,7 @@ func (b *BitFinex) listen() {
 		b.lg.Info("websocket disconnected")
 	}()
 
-	defer utils.Recover(b.lg)
+	defer tools.Recover(b.lg)
 
 	events := b.ws.Listen()
 
