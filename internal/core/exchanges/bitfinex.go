@@ -185,7 +185,8 @@ func (b *BitFinex) listen() {
 				b.lg.Debugf("WALLET UPDATE %#v", data)
 
 				w := wallet.Wallet(*data)
-				b.updateWallet(&w)
+				wl := b.updateWallet(&w)
+				b.emmit(EventWalletUpdate, *wl)
 
 			case *balanceinfo.Update:
 				b.lg.Debugf("BALANCE INFO %#v", data)
@@ -308,8 +309,8 @@ func (b *BitFinex) RemoveWatcher(name string) {
 	b.watchers.Remove(name)
 }
 
-func (b *BitFinex) emmit(Event watcher.EventType, data interface{}) {
-	b.watchers.Emmit(watcher.NewEvent(Event, data))
+func (b *BitFinex) emmit(EventT watcher.EventType, data interface{}) {
+	b.watchers.Emmit(watcher.NewEvent(EventT, data))
 }
 
 func (b *BitFinex) GetOrders() ([]Order, error) {
@@ -430,7 +431,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) error {
 //  use https://docs.bitfinex.com/docs/flag-values
 //}
 
-func (b *BitFinex) updateWallet(w *wallet.Wallet) {
+func (b *BitFinex) updateWallet(w *wallet.Wallet) *models.WalletCurrency {
 	wl := &models.WalletCurrency{
 		Name:      w.Currency,
 		Available: w.BalanceAvailable,
@@ -439,12 +440,14 @@ func (b *BitFinex) updateWallet(w *wallet.Wallet) {
 
 	switch w.Type {
 	case "exchange":
+		wl.WalletType = models.WalletTypeExchange
 		b.walletsExchange.Add(wl)
 	case "margin":
+		wl.WalletType = models.WalletTypeMargin
 		b.walletsMargin.Add(wl)
 	}
 
-	b.emmit(EventWalletUpdate, *wl)
+	return wl
 }
 
 func (b *BitFinex) CheckPair(pair string, margin bool) error {

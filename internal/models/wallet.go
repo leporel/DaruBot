@@ -18,9 +18,10 @@ const (
 )
 
 type WalletCurrency struct {
-	Name      string
-	Balance   float64
-	Available float64
+	Name       string
+	WalletType WalletType
+	Balance    float64
+	Available  float64
 }
 
 type Wallets struct {

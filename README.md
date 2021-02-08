@@ -6,17 +6,17 @@
 
 Trading bot, uses exchanges API for monitoring price and make decisions to place or close orders
 
-# Exchange support
+# Supports Exchanges
 
 * Bitfinex
 
 # Features
 
-## Stategies
+## Strategies
 
 ### Default
 
-dumb strategy, like your 3 year old sister saw the price chart for the first time
+dumb strategy, like your 3-year-old sister saw the price chart for the first time
 
 ## Integrations
 

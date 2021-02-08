@@ -5,7 +5,6 @@ import (
 	"DaruBot/internal/models"
 	"DaruBot/pkg/logger"
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -81,7 +80,7 @@ func newBitfinex(level logger.Level) (*BitFinex, func(), error) {
 	return bf, finish, err
 }
 
-func startWatcher(bf *BitFinex) func() {
+func startWatcher(t *testing.T, bf *BitFinex) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -90,7 +89,11 @@ func startWatcher(bf *BitFinex) func() {
 		for {
 			select {
 			case evt := <-wh.Listen():
-				fmt.Printf("\nevent type: %v, payload: [%#v] \n\n", evt.Type, evt.Payload)
+				if evt.Type == EventError {
+					t.Errorf("error: %v", evt.Payload)
+				}
+				t.Logf("event type: %v, payload: [%#v] \n", EventToString(evt.Type), evt.Payload)
+				//fmt.Printf("\nevent type: %v, payload: [%#v] \n\n", evt.Type, evt.Payload)
 			case <-ctx.Done():
 				bf.RemoveWatcher("all_events")
 				return
@@ -157,7 +160,7 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 
-	watcherEnd := startWatcher(bf)
+	watcherEnd := startWatcher(t, bf)
 	defer watcherEnd()
 
 	err = bf.Connect()
@@ -169,9 +172,9 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 
 	newOrder := &models.PutOrder{
 		Pair:      "tTESTBTC:TESTUSD",
-		Type:      models.OrderTypeMarket,
+		Type:      models.OrderTypeLimit,
 		Amount:    0.001,
-		Price:     39300,
+		Price:     42300,
 		StopPrice: 0,
 		Margin:    false,
 	}
