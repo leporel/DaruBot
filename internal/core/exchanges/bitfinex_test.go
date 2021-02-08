@@ -158,6 +158,7 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 	}
 
 	watcherEnd := startWatcher(bf)
+	defer watcherEnd()
 
 	err = bf.Connect()
 	if err != nil {
@@ -182,6 +183,5 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	finish()
-	watcherEnd()
 	time.Sleep(1 * time.Second)
 }
