@@ -8,6 +8,19 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
+)
+
+type Level uint32
+
+const (
+	PanicLevel Level = iota
+	FatalLevel
+	ErrorLevel
+	WarnLevel
+	InfoLevel
+	DebugLevel
+	TraceLevel
 )
 
 type Logger interface {
@@ -107,13 +120,13 @@ func (l logrusLogger) AddHook(hooks []Hook) {
 	//	l.log.Logger.AddHook()
 }
 
-func New(writer io.Writer, level logrus.Level) *logrusLogger {
+func New(writer io.Writer, level Level) *logrusLogger {
 	log := logrus.New()
 
 	log.SetOutput(writer)
 	// log.SetReportCaller(true) // comment until logrus dont have ability set level of pkg, other way we print stack trace every time when call log.Error()
 	log.SetNoLock()
-	log.SetLevel(level)
+	log.SetLevel(logrus.Level(level))
 
 	var formatter logrus.Formatter
 	formatter = &logrus.TextFormatter{
@@ -138,6 +151,14 @@ func New(writer io.Writer, level logrus.Level) *logrusLogger {
 	}
 }
 
+type HookData struct {
+	Time    time.Time
+	Level   Level
+	Caller  *runtime.Frame
+	Message string
+	err     string
+}
+
 type Hook interface {
-	Fire(string) error
+	Fire(*HookData) error
 }

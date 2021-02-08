@@ -48,10 +48,26 @@ func (o *BitfinexOrders) GetAll() []*order.Order {
 	return rs
 }
 
-func BitfinexOrderToModel(o *order.Order) *models.Order {
+func BitfinexOrderToModel(or interface{}) (*models.Order, bool) {
+	var o order.Order
+
+	switch t := or.(type) {
+	case *order.Order:
+		o = *t
+	case *order.Update:
+		o = order.Order(*t)
+	case *order.Cancel:
+		o = order.Order(*t)
+	case *order.New:
+		o = order.Order(*t)
+	default:
+		return nil, false
+	}
+
 	rs := &models.Order{
 		ID:             fmt.Sprint(o.ID),
 		Price:          o.Price,
+		PriceAvg:       o.PriceAvg,
 		AmountCurrent:  o.Amount,
 		AmountOriginal: o.AmountOrig,
 		Date:           tools.TimeFromMilliseconds(o.MTSCreated),
@@ -68,8 +84,8 @@ func BitfinexOrderToModel(o *order.Order) *models.Order {
 		rs.Type = models.OrderTypeStop
 	case "STOP LIMIT", "EXCHANGE STOP LIMIT":
 		rs.Type = models.OrderTypeStopLimit
-	case "TRAILING STOP", "EXCHANGE TRAILING STOP":
-		rs.Type = models.OrderTypeTrailingStop
+	//case "TRAILING STOP", "EXCHANGE TRAILING STOP":
+	//	rs.Type = models.OrderTypeTrailingStop
 	default:
 		rs.Type = models.OrderTypeUnknown
 	}
@@ -77,8 +93,9 @@ func BitfinexOrderToModel(o *order.Order) *models.Order {
 	rs.Meta["Exchange"] = ExchangeTypeBitfinex
 	rs.Meta["Status"] = o.Status
 	rs.Meta["Type"] = o.Type
+	rs.Meta["Flags"] = o.Flags
 
-	return rs
+	return rs, true
 }
 
 type BitfinexPositions struct {
@@ -120,7 +137,22 @@ func (o *BitfinexPositions) GetAll() []*position.Position {
 	return rs
 }
 
-func BitfinexPositionToModel(p *position.Position) *models.Position {
+func BitfinexPositionToModel(po interface{}) (*models.Position, bool) {
+	var p position.Position
+
+	switch t := po.(type) {
+	case *position.Position:
+		p = *t
+	case *position.Update:
+		p = position.Position(*t)
+	case *position.Cancel:
+		p = position.Position(*t)
+	case *position.New:
+		p = position.Position(*t)
+	default:
+		return nil, false
+	}
+
 	rs := &models.Position{
 		ID:                   fmt.Sprint(p.Id),
 		Pair:                 p.Symbol,
@@ -135,5 +167,5 @@ func BitfinexPositionToModel(p *position.Position) *models.Position {
 
 	rs.Meta["Exchange"] = ExchangeTypeBitfinex
 
-	return rs
+	return rs, true
 }

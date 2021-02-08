@@ -5,29 +5,29 @@ import "time"
 type OrderType string
 
 const (
-	OrderTypeLimit        OrderType = "LIMIT"
-	OrderTypeMarket       OrderType = "MARKET"
-	OrderTypeStop         OrderType = "STOP"
-	OrderTypeStopLimit    OrderType = "STOP LIMIT"
-	OrderTypeTrailingStop OrderType = "TRAILING STOP"
-	OrderTypeUnknown      OrderType = "UNKNOWN"
+	OrderTypeLimit     OrderType = "LIMIT"
+	OrderTypeMarket    OrderType = "MARKET"
+	OrderTypeStop      OrderType = "STOP"
+	OrderTypeStopLimit OrderType = "STOP LIMIT"
+	OrderTypeUnknown   OrderType = "UNKNOWN"
 )
 
 type PutOrder struct {
-	Pair      string
-	Type      OrderType
-	Amount    float64
+	Pair   string
+	Type   OrderType
+	Amount float64
+	// Positive for buy, Negative for sell, ignoring if OrderTypeMarket
 	Price     float64
 	StopPrice float64
 
-	Margin      bool
-	MarketPrice bool // Put order to market price, ignoring Price
+	Margin bool
 }
 
 type Order struct {
 	ID             string
 	Type           OrderType
 	Price          float64
+	PriceAvg       float64
 	AmountCurrent  float64
 	AmountOriginal float64
 	Date           time.Time

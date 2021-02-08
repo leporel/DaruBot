@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	DebugMode  = false
-	BuildVer   = ""
+	DebugMode  = true
+	Ver        = ""
+	Build      = ""
 	GitBrahnch = ""
 )
 

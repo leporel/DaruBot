@@ -6,6 +6,9 @@ const (
 	EventBookState watcher.EventType = iota
 	EventPairState
 
+	EventWalletUpdate
+
+	EventOrderPartiallyFilled
 	EventOrderFilled
 	EventOrderNew
 	EventOrderUpdate
@@ -13,5 +16,11 @@ const (
 	EventPositionNew
 	EventPositionClosed
 
+	EventRequestSuccess
+
 	EventError
 )
+
+type RequestResult struct {
+	Msg string
+}

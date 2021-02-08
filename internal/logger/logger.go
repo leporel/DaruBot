@@ -12,13 +12,13 @@ func NewLogger(c config.Configurations) logger.Logger {
 	w := os.Stdout
 
 	if c.Logger.FileOutput {
-		// TODO Make logs to file
+		// TODO logs to file
 		//w = io.MultiWriter(os.Stdout, fileOut)
 	}
 
-	level := logrus.DebugLevel
+	level := logger.DebugLevel
 	if !c.IsDebug() {
-		level = logrus.InfoLevel
+		level = logger.InfoLevel
 	}
 
 	lg := logger.New(w, level)
@@ -26,15 +26,16 @@ func NewLogger(c config.Configurations) logger.Logger {
 	return lg
 }
 
-type Hook interface {
-	Fire(string) error
-}
-
 type goLogging struct {
-	lg logger.Logger
+	lvl logging.Level
+	lg  logger.Logger
 }
 
 func (g *goLogging) Log(level logging.Level, callDepth int, record *logging.Record) error {
+	//if level > g.lvl {
+	//	return nil
+	//}
+
 	var lvl logrus.Level = logrus.InfoLevel
 
 	switch level {
@@ -57,8 +58,21 @@ func (g *goLogging) Log(level logging.Level, callDepth int, record *logging.Reco
 	return nil
 }
 
-func ConvertToGoLogging(logger logger.Logger) logging.Backend {
+func (g *goLogging) GetLevel(module string) logging.Level {
+	return g.lvl
+}
+
+func (g *goLogging) SetLevel(Level logging.Level, module string) {
+	//g.lvl = Level
+}
+
+func (g *goLogging) IsEnabledFor(Level logging.Level, module string) bool {
+	return Level <= g.lvl
+}
+
+func ConvertToGoLogging(logger logger.Logger, Level logging.Level) logging.LeveledBackend {
 	return &goLogging{
-		lg: logger,
+		lvl: Level,
+		lg:  logger,
 	}
 }

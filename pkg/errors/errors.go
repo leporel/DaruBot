@@ -18,14 +18,14 @@ import (
 // If error have StackTrace, new stack trace will be ignoring
 func WrapStack(err error, msgs ...interface{}) error {
 	if err != nil {
-		var msg string
+		msg := ""
 		if !HasStack(err) {
 			err = werr.WithStack(err)
 		}
 		for _, m := range msgs {
-			err = werr.WithMessage(err, fmt.Sprintf("%s%+v;\n", msg, m))
+			msg = fmt.Sprintf("%+v; ", m)
 		}
-
+		err = werr.WithMessage(err, msg)
 	}
 	return err
 }
@@ -34,10 +34,11 @@ func WrapStack(err error, msgs ...interface{}) error {
 // without StackTrace
 func WrapMessage(err error, msgs ...interface{}) error {
 	if err != nil {
-		var msg string
+		msg := ""
 		for _, m := range msgs {
-			err = werr.WithMessage(err, fmt.Sprintf("%s%+v;\n", msg, m))
+			msg = fmt.Sprintf("%+v; ", m)
 		}
+		err = werr.WithMessage(err, msg)
 	}
 	return err
 }

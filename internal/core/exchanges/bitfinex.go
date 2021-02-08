@@ -13,10 +13,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/balanceinfo"
+	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/notification"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/order"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/position"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/ticker"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/trade"
+	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/tradeexecution"
+	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/tradeexecutionupdate"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/wallet"
 	"github.com/bitfinexcom/bitfinex-api-go/v2/rest"
 	"github.com/bitfinexcom/bitfinex-api-go/v2/websocket"
@@ -30,6 +33,11 @@ import (
 var (
 	supportEvents = []watcher.EventType{
 		EventError,
+		EventRequestSuccess,
+		EventOrderNew,
+		EventOrderFilled,
+		EventOrderPartiallyFilled,
+		EventWalletUpdate,
 	}
 )
 
@@ -60,12 +68,12 @@ func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger)
 	p.ManageOrderbook = false
 	p.LogTransport = false
 
-	log := logging.MustGetLogger("bitfinex-ws")
-	logging.SetLevel(logging.DEBUG, "bitfinex-ws")
-	if !c.IsDebug() {
-		logging.SetLevel(logging.ERROR, "bitfinex-ws")
-	}
-	logging.SetBackend(logger2.ConvertToGoLogging(lg.WithPrefix("exchange_ws", "Bitfinex")))
+	log := logging.MustGetLogger("Bitfinex_internal")
+	logging.SetLevel(logging.INFO, log.Module)
+	//if !c.IsDebug() {
+	//	logging.SetLevel(logging.ERROR, "Bitfinex_internal")
+	//}
+	log.SetBackend(logger2.ConvertToGoLogging(lg.WithPrefix("exchange", log.Module), logging.INFO))
 	p.Logger = log
 
 	WebSocket := websocket.NewWithParams(p).Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
@@ -156,7 +164,7 @@ func (b *BitFinex) listen() {
 
 			case *websocket.InfoEvent:
 				// this event confirms connection to the bfx websocket
-				b.lg.Debugf("InfoEvent: %#v", data)
+				b.lg.Debugf("INFO EVENT: %#v", data)
 
 				// TODO check PlatformInfo.Status https://docs.bitfinex.com/reference#rest-public-platform-status
 
@@ -167,33 +175,33 @@ func (b *BitFinex) listen() {
 				// TODO handle
 
 			case *wallet.Snapshot:
-				b.lg.Debugf("wallet snapshot %#v", data)
+				b.lg.Debugf("WALLET SNAPSHOT %#v", data)
 
 				for _, w := range data.Snapshot {
 					b.updateWallet(w)
 				}
 
 			case *wallet.Update:
-				b.lg.Debugf("wallet update %#v", data)
+				b.lg.Debugf("WALLET UPDATE %#v", data)
 
 				w := wallet.Wallet(*data)
 				b.updateWallet(&w)
 
 			case *balanceinfo.Update:
-				b.lg.Debugf("balance info %#v", data)
+				b.lg.Debugf("BALANCE INFO %#v", data)
 
 				b.balance.Total = data.TotalAUM
 				b.balance.Total = data.NetAUM
 
 			case *position.Snapshot:
-				b.lg.Debugf("position snapshot %#v", data)
+				b.lg.Debugf("POSITION SNAPSHOT %#v", data)
 
 				for _, p := range data.Snapshot {
 					b.positions.Add(p)
 				}
 
 			case *position.Update:
-				b.lg.Debugf("position update %#v", data)
+				b.lg.Debugf("POSITION UPDATE %#v", data)
 
 				if data.Status == "CLOSED" {
 					b.positions.Delete(data.Id)
@@ -203,59 +211,78 @@ func (b *BitFinex) listen() {
 				}
 
 			case *position.New:
-				b.lg.Debugf("position new %#v", data)
+				b.lg.Debugf("POSITION NEW %#v", data)
 				p := position.Position(*data)
 				b.positions.Add(&p)
 
 			case *position.Cancel:
-				b.lg.Debugf("position cancel %#v", data)
+				b.lg.Debugf("POSITION CANCEL %#v", data)
 
 				b.positions.Delete(data.Id)
 
 			case *order.Snapshot:
-				b.lg.Debugf("order snapshot %#v", data)
+				b.lg.Debugf("ORDER SNAPSHOT %#v", data)
 
 				for _, p := range data.Snapshot {
 					b.orders.Add(p)
 				}
 
 			case *order.Update:
-				b.lg.Debugf("order update %#v", data)
+				b.lg.Debugf("ORDER UPDATE %#v", data)
 
-				if strings.Contains(data.Status, "EXECUTED") {
-					b.orders.Delete(data.ID)
-				}
 				if strings.Contains(data.Status, "PARTIALLY FILLED") {
-					b.lg.Infof("order %v was partially filled", data.ID)
+					//b.lg.Infof("order %v was partially filled at %v, left amount %v", data.ID, data.Price, data.Amount)
+					b.emmit(EventOrderPartiallyFilled, *b.convertOrder(data))
 				}
 
 			case *order.Cancel:
-				b.lg.Debugf("order cancel %#v", data)
+				b.lg.Debugf("ORDER CANCEL %#v", data)
+
+				if strings.Contains(data.Status, "EXECUTED") {
+					b.emmit(EventOrderFilled, *b.convertOrder(data))
+				}
 
 				b.orders.Delete(data.ID)
 
 			case *order.New:
-				b.lg.Debugf("new order created %#v", data)
+				b.lg.Debugf("ORDER NEW %#v", data)
+
+				if data.Status == "ACTIVE" {
+					b.emmit(EventOrderNew, *b.convertOrder(data))
+				}
 
 				o := order.Order(*data)
 				b.orders.Add(&o)
 
+			case *tradeexecution.TradeExecution:
+				b.lg.Debugf("TRADE EXECUTION:  %#v", data)
+
+			case *tradeexecutionupdate.TradeExecutionUpdate:
+				b.lg.Debugf("TRADE EXECUTION UPDATE:  %#v", data)
+
 			case *trade.Trade:
-				b.lg.Debugf("new trade: %s", data)
+				b.lg.Debugf("TRADE NEW:  %#v", data)
 
 			case *ticker.Snapshot:
-				b.lg.Debugf("new ticker: %s", data)
-
-				// TODO handle
+				b.lg.Debugf("TICKER NEW:  %#v", data)
 
 			case *ticker.Update:
-				b.lg.Debugf("ticker update: %s", data)
+				b.lg.Debugf("TICKER UPDATE:  %#v", data)
 
-				// TODO handle
+			case *notification.Notification:
+				b.lg.Debugf("NOTIFICATION NEW:  %#v", data)
+				switch data.Status {
+				case "ERROR", "FAILURE":
+					b.emmit(EventError, errors.WrapMessage(ErrRequestError, data.Text))
+				case "SUCCESS":
+					b.emmit(EventRequestSuccess, RequestResult{Msg: data.Text})
+				default:
+					b.lg.Warn("UNKNOWN NOTIFICATION:  %#v", data)
+				}
 
 			case error:
-				b.lg.Errorf("channel closed: %s", data)
-				b.watchers.Emmit(watcher.NewEvent(EventError, errors.New(fmt.Sprintf("channel closed: %s", data))))
+				b.lg.Errorf("CHANNEL CLOSED:  %#v", data)
+				b.emmit(EventError, errors.WrapMessage(ErrWebsocketError, fmt.Sprintf("channel closed: %s", data.Error())))
 				return
 
 			default:
@@ -281,16 +308,29 @@ func (b *BitFinex) RemoveWatcher(name string) {
 	b.watchers.Remove(name)
 }
 
+func (b *BitFinex) emmit(Event watcher.EventType, data interface{}) {
+	b.watchers.Emmit(watcher.NewEvent(Event, data))
+}
+
 func (b *BitFinex) GetOrders() ([]Order, error) {
 	rs := make([]Order, 0)
 
 	orders := b.orders.GetAll()
 
 	for _, o := range orders {
-		rs = append(rs, exchanges.BitfinexOrderToModel(o))
+		rs = append(rs, b.convertOrder(o))
 	}
 
 	return rs, nil
+}
+
+func (b *BitFinex) convertOrder(data interface{}) *models.Order {
+	o, ok := exchanges.BitfinexOrderToModel(data)
+	if !ok {
+		b.lg.Error(errors.Errorf("cant cast order to model %#v", data))
+		return nil
+	}
+	return o
 }
 
 func (b *BitFinex) GetPositions() ([]Position, error) {
@@ -299,10 +339,19 @@ func (b *BitFinex) GetPositions() ([]Position, error) {
 	ps := b.positions.GetAll()
 
 	for _, p := range ps {
-		rs = append(rs, exchanges.BitfinexPositionToModel(p))
+		rs = append(rs, b.convertPosition(p))
 	}
 
 	return rs, nil
+}
+
+func (b *BitFinex) convertPosition(data interface{}) *models.Position {
+	o, ok := exchanges.BitfinexPositionToModel(data)
+	if !ok {
+		b.lg.Errorf("cant cast order to model %#v", data)
+		return nil
+	}
+	return o
 }
 
 func (b *BitFinex) GetWallets() ([]*models.Wallets, error) {
@@ -326,26 +375,33 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) error {
 		typeOrder = "LIMIT"
 	case models.OrderTypeMarket:
 		typeOrder = "MARKET"
+		Price = 0
 	case models.OrderTypeStop:
 		typeOrder = "STOP"
+		if o.StopPrice == 0 {
+			return errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+		}
+		Price = o.StopPrice
 	case models.OrderTypeStopLimit:
 		typeOrder = "STOP LIMIT"
+		if o.Price == 0 {
+			return errors.WrapMessage(ErrOrderBadPutOrderParams, "limit price are not specified")
+		}
 		PriceAuxLimit = o.Price
+		if o.StopPrice == 0 {
+			return errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+		}
 		Price = o.StopPrice
 	default:
-		return OrderTypeNotSupported
+		return ErrOrderTypeNotSupported
 	}
 
 	if !o.Margin {
 		typeOrder = fmt.Sprintf("EXCHANGE %s", typeOrder)
 	}
 
-	if o.MarketPrice {
-		Amount = 0
-	}
-
 	if !strings.HasPrefix(Pair, "t") {
-		return PairIncorrect
+		return ErrPairIncorrect
 	}
 
 	req := &order.NewRequest{
@@ -387,6 +443,8 @@ func (b *BitFinex) updateWallet(w *wallet.Wallet) {
 	case "margin":
 		b.walletsMargin.Add(wl)
 	}
+
+	b.emmit(EventWalletUpdate, *wl)
 }
 
 func (b *BitFinex) CheckPair(pair string, margin bool) error {
@@ -397,7 +455,7 @@ func checkPair(pair string, margin bool) error {
 	var pairs [][]string
 
 	if !strings.HasPrefix(pair, "t") {
-		return PairIncorrect
+		return ErrPairIncorrect
 	}
 
 	pair = strings.TrimPrefix(pair, "t")
@@ -432,5 +490,5 @@ func checkPair(pair string, margin bool) error {
 		}
 	}
 
-	return PairNotSupported
+	return ErrPairNotSupported
 }

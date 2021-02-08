@@ -2,14 +2,13 @@ package logger
 
 import (
 	"DaruBot/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"os"
 	"testing"
 )
 
 func TestNewLogger(t *testing.T) {
 	writer := os.Stdout
-	lg := New(writer, logrus.DebugLevel)
+	lg := New(writer, DebugLevel)
 
 	lg.Info("test information")
 	lg.Error("test error")
@@ -22,7 +21,7 @@ func TestNewLogger(t *testing.T) {
 
 func TestNewError(t *testing.T) {
 	writer := os.Stdout
-	lg := New(writer, logrus.DebugLevel)
+	lg := New(writer, DebugLevel)
 
 	err := errors.New("some error")
 
