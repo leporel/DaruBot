@@ -50,7 +50,8 @@ type BitFinex struct {
 	ws   *websocket.Client
 	rest *rest.Client
 
-	lg logger.Logger
+	lg  logger.Logger
+	cfg config.Configurations
 
 	ready          bool
 	readyChan      chan interface{}
@@ -62,6 +63,8 @@ type BitFinex struct {
 	walletsExchange models.Wallets
 	walletsMargin   models.Wallets
 	balance         models.BalanceUSD
+
+	lastUpdate time.Time
 
 	watchers *watcher.WatcherManager
 }
@@ -98,6 +101,7 @@ func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger)
 		readyChan:       make(chan interface{}, 1),
 		disconnectChan:  make(chan interface{}, 1),
 		watchers:        wManager,
+		cfg:             c,
 	}, nil
 }
 
@@ -189,6 +193,7 @@ func (b *BitFinex) listen() {
 				for _, w := range data.Snapshot {
 					b.updateWallet(w)
 				}
+				b.lastUpdate = time.Now()
 
 			case *wallet.Update:
 				b.lg.Debugf("WALLET UPDATE %#v", data)
@@ -197,11 +202,15 @@ func (b *BitFinex) listen() {
 				wl := b.updateWallet(&w)
 				b.emmit(EventWalletUpdate, *wl)
 
+				b.lastUpdate = time.Now()
+
 			case *balanceinfo.Update:
 				b.lg.Debugf("BALANCE INFO %#v", data)
 
 				b.balance.Total = data.TotalAUM
 				b.balance.Total = data.NetAUM
+
+				b.lastUpdate = time.Now()
 
 			case *position.Snapshot:
 				b.lg.Debugf("POSITION SNAPSHOT %#v", data)
@@ -211,6 +220,7 @@ func (b *BitFinex) listen() {
 				for _, p := range data.Snapshot {
 					b.positions.Add(p)
 				}
+				b.lastUpdate = time.Now()
 
 			case *position.Update:
 				b.lg.Debugf("POSITION UPDATE %#v", data)
@@ -221,16 +231,20 @@ func (b *BitFinex) listen() {
 					p := position.Position(*data)
 					b.positions.Add(&p)
 				}
+				b.lastUpdate = time.Now()
 
 			case *position.New:
 				b.lg.Debugf("POSITION NEW %#v", data)
 				p := position.Position(*data)
 				b.positions.Add(&p)
 
+				b.lastUpdate = time.Now()
+
 			case *position.Cancel:
 				b.lg.Debugf("POSITION CANCEL %#v", data)
 
 				b.positions.Delete(data.Id)
+				b.lastUpdate = time.Now()
 
 			case *order.Snapshot:
 				b.lg.Debugf("ORDER SNAPSHOT %#v", data)
@@ -240,6 +254,7 @@ func (b *BitFinex) listen() {
 				for _, p := range data.Snapshot {
 					b.orders.Add(p)
 				}
+				b.lastUpdate = time.Now()
 
 			case *order.Update:
 				b.lg.Debugf("ORDER UPDATE %#v", data)
@@ -248,6 +263,7 @@ func (b *BitFinex) listen() {
 					//b.lg.Infof("order %v was partially filled at %v, left amount %v", data.ID, data.Price, data.Amount)
 					b.emmit(EventOrderPartiallyFilled, *b.convertOrder(data))
 				}
+				b.lastUpdate = time.Now()
 
 			case *order.Cancel:
 				b.lg.Debugf("ORDER CANCEL %#v", data)
@@ -257,6 +273,7 @@ func (b *BitFinex) listen() {
 				}
 
 				b.orders.Delete(data.ID)
+				b.lastUpdate = time.Now()
 
 			case *order.New:
 				b.lg.Debugf("ORDER NEW %#v", data)
@@ -267,6 +284,7 @@ func (b *BitFinex) listen() {
 
 				o := order.Order(*data)
 				b.orders.Add(&o)
+				b.lastUpdate = time.Now()
 
 			case *tradeexecution.TradeExecution:
 				b.lg.Debugf("TRADE EXECUTION:  %#v", data)
@@ -339,8 +357,12 @@ func (b *BitFinex) emmit(EventT watcher.EventType, data interface{}) {
 	}
 }
 
-func (b *BitFinex) GetOrders() ([]Order, error) {
-	rs := make([]Order, 0)
+func (b *BitFinex) IsHasUpdates(t time.Time) bool {
+	return t.Before(b.lastUpdate)
+}
+
+func (b *BitFinex) GetOrders() ([]*models.Order, error) {
+	rs := make([]*models.Order, 0)
 
 	orders := b.orders.GetAll()
 
@@ -360,8 +382,8 @@ func (b *BitFinex) convertOrder(data interface{}) *models.Order {
 	return o
 }
 
-func (b *BitFinex) GetPositions() ([]Position, error) {
-	rs := make([]Position, 0)
+func (b *BitFinex) GetPositions() ([]*models.Position, error) {
+	rs := make([]*models.Position, 0)
 
 	ps := b.positions.GetAll()
 
@@ -448,7 +470,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		Amount:        Amount,
 		Price:         Price,
 		PriceAuxLimit: PriceAuxLimit,
-		AffiliateCode: "jXAX6tEPA",
+		AffiliateCode: b.cfg.Exchanges.BitFinex.Affiliate,
 	}
 
 	b.lg.Debugf("Submitting order: %#v", req)
@@ -487,7 +509,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 
 //func (b *BitFinex) CancelOrder(order *models.PutOrder) error
 
-//func (b *BitFinex) ClosePosition(position *models.Position) error {
+//func (b *BitFinex) ClosePosition(position *models.Position) (*models.Position, error) {
 //  use https://docs.bitfinex.com/docs/flag-values
 //}
 

@@ -20,9 +20,10 @@ var (
 		},
 		Exchanges: Exchanges{
 			BitFinex: BitFinex{
-				ApiKey:   os.Getenv("API_KEY"),
-				ApiSec:   os.Getenv("API_SEC"),
-				Strategy: "DaruStonks",
+				ApiKey:    os.Getenv("API_KEY"),
+				ApiSec:    os.Getenv("API_SEC"),
+				Strategy:  "DaruStonks",
+				Affiliate: "jXAX6tEPA",
 			},
 		},
 		Strategies: Strategies{
@@ -46,9 +47,10 @@ type Exchanges struct {
 }
 
 type BitFinex struct {
-	ApiKey   string
-	ApiSec   string
-	Strategy string
+	ApiKey    string
+	ApiSec    string
+	Strategy  string
+	Affiliate string
 }
 
 type DaruStonks struct {
