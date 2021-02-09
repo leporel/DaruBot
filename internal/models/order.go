@@ -13,9 +13,10 @@ const (
 )
 
 type PutOrder struct {
-	Pair   string
-	Type   OrderType
-	Amount float64
+	InternalID string
+	Pair       string
+	Type       OrderType
+	Amount     float64
 	// Positive for buy, Negative for sell, ignoring if OrderTypeMarket
 	Price     float64
 	StopPrice float64
@@ -25,6 +26,7 @@ type PutOrder struct {
 
 type Order struct {
 	ID             string
+	InternalID     string
 	Type           OrderType
 	Price          float64
 	PriceAvg       float64
@@ -37,6 +39,10 @@ type Order struct {
 
 func (o *Order) GetID() string {
 	return o.ID
+}
+
+func (o *Order) GetInternalID() string {
+	return o.InternalID
 }
 
 func (o *Order) GetPrice() float64 {
@@ -53,4 +59,8 @@ func (o *Order) GetOriginalAmount() float64 {
 
 func (o *Order) GetType() OrderType {
 	return o.Type
+}
+
+func (o *Order) IsFilled() bool {
+	return o.AmountCurrent == 0
 }

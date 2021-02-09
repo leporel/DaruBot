@@ -11,13 +11,15 @@ import (
 var (
 	DebugMode  = true
 	Ver        = ""
-	Build      = ""
+	BuildDate  = ""
 	GitBrahnch = ""
 )
 
 // TODO versioning https://blog.alexellis.io/inject-build-time-vars-golang/
 
 func Run() {
+
+	// TODO check new version on github
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)

@@ -5,6 +5,7 @@ import (
 	"DaruBot/internal/models"
 	"DaruBot/pkg/logger"
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -171,18 +172,20 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	newOrder := &models.PutOrder{
-		Pair:      "tTESTBTC:TESTUSD",
-		Type:      models.OrderTypeLimit,
-		Amount:    0.001,
-		Price:     42300,
-		StopPrice: 0,
-		Margin:    false,
+		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
+		Pair:       "tTESTBTC:TESTUSD",
+		Type:       models.OrderTypeLimit,
+		Amount:     0.00001,
+		Price:      42300,
+		StopPrice:  0,
+		Margin:     false,
 	}
 
-	err = bf.PutOrder(newOrder)
+	order, err := bf.PutOrder(newOrder)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
+	t.Logf("Test result order: %#v", order)
 
 	time.Sleep(3 * time.Second)
 	finish()

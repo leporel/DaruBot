@@ -7,14 +7,17 @@ import (
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/order"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/position"
 	"sync"
+	"time"
 )
 
 type BitfinexOrders struct {
-	orders sync.Map
+	orders     sync.Map
+	lastUpdate time.Time
 }
 
 func (o *BitfinexOrders) Add(rd *order.Order) {
 	o.orders.Store(rd.ID, rd)
+	o.lastUpdate = time.Now()
 }
 
 func (o *BitfinexOrders) Get(orderID int64) *order.Order {
@@ -28,6 +31,7 @@ func (o *BitfinexOrders) Get(orderID int64) *order.Order {
 }
 
 func (o *BitfinexOrders) Delete(orderID int64) *order.Order {
+	o.lastUpdate = time.Now()
 	rd, ok := o.orders.LoadAndDelete(orderID)
 
 	if !ok {
@@ -48,6 +52,15 @@ func (o *BitfinexOrders) GetAll() []*order.Order {
 	return rs
 }
 
+func (o *BitfinexOrders) Clear() {
+	o.orders = sync.Map{}
+	o.lastUpdate = time.Now()
+}
+
+func (o *BitfinexOrders) LastUpdate() time.Time {
+	return o.lastUpdate
+}
+
 func BitfinexOrderToModel(or interface{}) (*models.Order, bool) {
 	var o order.Order
 
@@ -66,6 +79,7 @@ func BitfinexOrderToModel(or interface{}) (*models.Order, bool) {
 
 	rs := &models.Order{
 		ID:             fmt.Sprint(o.ID),
+		InternalID:     fmt.Sprint(o.CID),
 		Price:          o.Price,
 		PriceAvg:       o.PriceAvg,
 		AmountCurrent:  o.Amount,
@@ -99,11 +113,13 @@ func BitfinexOrderToModel(or interface{}) (*models.Order, bool) {
 }
 
 type BitfinexPositions struct {
-	positions sync.Map
+	positions  sync.Map
+	lastUpdate time.Time
 }
 
 func (o *BitfinexPositions) Add(ps *position.Position) {
 	o.positions.Store(ps.Id, ps)
+	o.lastUpdate = time.Now()
 }
 
 func (o *BitfinexPositions) Get(positionID int64) *position.Position {
@@ -117,6 +133,7 @@ func (o *BitfinexPositions) Get(positionID int64) *position.Position {
 }
 
 func (o *BitfinexPositions) Delete(positionID int64) *position.Position {
+	o.lastUpdate = time.Now()
 	wallet, ok := o.positions.LoadAndDelete(positionID)
 
 	if !ok {
@@ -135,6 +152,15 @@ func (o *BitfinexPositions) GetAll() []*position.Position {
 	})
 
 	return rs
+}
+
+func (o *BitfinexPositions) Clear() {
+	o.positions = sync.Map{}
+	o.lastUpdate = time.Now()
+}
+
+func (o *BitfinexPositions) LastUpdate() time.Time {
+	return o.lastUpdate
 }
 
 func BitfinexPositionToModel(po interface{}) (*models.Position, bool) {

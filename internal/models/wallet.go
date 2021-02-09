@@ -2,6 +2,7 @@ package models
 
 import (
 	"sync"
+	"time"
 )
 
 type BalanceUSD struct {
@@ -27,10 +28,12 @@ type WalletCurrency struct {
 type Wallets struct {
 	WalletType WalletType
 	wallets    sync.Map
+	lastUpdate time.Time
 }
 
 func (w *Wallets) Add(wallet *WalletCurrency) {
 	w.wallets.Store(wallet.Name, wallet)
+	w.lastUpdate = time.Now()
 }
 
 func (w *Wallets) Get(currency string) *WalletCurrency {
@@ -44,6 +47,7 @@ func (w *Wallets) Get(currency string) *WalletCurrency {
 }
 
 func (w *Wallets) Delete(currency string) *WalletCurrency {
+	w.lastUpdate = time.Now()
 	wallet, ok := w.wallets.LoadAndDelete(currency)
 
 	if !ok {
@@ -62,4 +66,13 @@ func (w *Wallets) GetAll() []*WalletCurrency {
 	})
 
 	return rs
+}
+
+func (w *Wallets) Clear() {
+	w.wallets = sync.Map{}
+	w.lastUpdate = time.Now()
+}
+
+func (w *Wallets) LastUpdate() time.Time {
+	return w.lastUpdate
 }

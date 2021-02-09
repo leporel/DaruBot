@@ -19,12 +19,19 @@ const (
 	EventPositionClosed
 
 	EventRequestSuccess
+	EventRequestFail
 
 	EventError
 )
 
+func init() {
+
+}
+
 type RequestResult struct {
+	ID  string
 	Msg string
+	Err error
 }
 
 func EventToString(t watcher.EventType) string {
@@ -49,6 +56,8 @@ func EventToString(t watcher.EventType) string {
 		return "EventPositionClosed"
 	case EventRequestSuccess:
 		return "EventRequestSuccess"
+	case EventRequestFail:
+		return "EventRequestFail"
 	case EventError:
 		return "EventError"
 	default:

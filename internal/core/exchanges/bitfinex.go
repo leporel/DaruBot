@@ -26,6 +26,7 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -108,8 +109,8 @@ func (b *BitFinex) Connect() error {
 
 	b.readyChan = make(chan interface{}, 1)
 
-	errorPipe := b.watchers.New("_api_Errors", EventError)
-	defer b.watchers.Remove("_api_Errors")
+	errorPipe := b.watchers.New("_api_errors", EventError)
+	defer b.watchers.Remove("_api_errors")
 
 	go b.listen()
 
@@ -177,6 +178,9 @@ func (b *BitFinex) listen() {
 			case *wallet.Snapshot:
 				b.lg.Debugf("WALLET SNAPSHOT %#v", data)
 
+				b.walletsMargin.Clear()
+				b.walletsExchange.Clear()
+
 				for _, w := range data.Snapshot {
 					b.updateWallet(w)
 				}
@@ -196,6 +200,8 @@ func (b *BitFinex) listen() {
 
 			case *position.Snapshot:
 				b.lg.Debugf("POSITION SNAPSHOT %#v", data)
+
+				b.positions.Clear()
 
 				for _, p := range data.Snapshot {
 					b.positions.Add(p)
@@ -223,6 +229,8 @@ func (b *BitFinex) listen() {
 
 			case *order.Snapshot:
 				b.lg.Debugf("ORDER SNAPSHOT %#v", data)
+
+				b.orders.Clear()
 
 				for _, p := range data.Snapshot {
 					b.orders.Add(p)
@@ -274,7 +282,17 @@ func (b *BitFinex) listen() {
 				b.lg.Debugf("NOTIFICATION NEW:  %#v", data)
 				switch data.Status {
 				case "ERROR", "FAILURE":
-					b.emmit(EventError, errors.WrapMessage(ErrRequestError, data.Text))
+					b.lg.Warn("REQUEST ERROR:  %#v", data)
+					switch data.Type {
+					case "on-req":
+						id := ""
+						if or, ok := data.NotifyInfo.(*order.New); ok {
+							id = fmt.Sprint(or.CID)
+						}
+						b.emmit(EventRequestFail, RequestResult{ID: id, Msg: data.Text, Err: ErrRequestError})
+					default:
+						b.emmit(EventRequestFail, RequestResult{ID: "", Msg: data.Text, Err: ErrRequestError})
+					}
 				case "SUCCESS":
 					b.emmit(EventRequestSuccess, RequestResult{Msg: data.Text})
 				default:
@@ -364,7 +382,11 @@ func (b *BitFinex) GetBalance() (models.BalanceUSD, error) {
 }
 
 // PutOrder https://docs.bitfinex.com/reference#ws-auth-input-order-new
-func (b *BitFinex) PutOrder(o *models.PutOrder) error {
+func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
+	if !b.ready {
+		return nil, ErrNoConnect
+	}
+
 	var typeOrder string
 	var PriceAuxLimit float64
 	var Price = o.Price
@@ -380,21 +402,21 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) error {
 	case models.OrderTypeStop:
 		typeOrder = "STOP"
 		if o.StopPrice == 0 {
-			return errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
 		}
 		Price = o.StopPrice
 	case models.OrderTypeStopLimit:
 		typeOrder = "STOP LIMIT"
 		if o.Price == 0 {
-			return errors.WrapMessage(ErrOrderBadPutOrderParams, "limit price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "limit price are not specified")
 		}
 		PriceAuxLimit = o.Price
 		if o.StopPrice == 0 {
-			return errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
 		}
 		Price = o.StopPrice
 	default:
-		return ErrOrderTypeNotSupported
+		return nil, ErrOrderTypeNotSupported
 	}
 
 	if !o.Margin {
@@ -402,12 +424,17 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) error {
 	}
 
 	if !strings.HasPrefix(Pair, "t") {
-		return ErrPairIncorrect
+		return nil, ErrPairIncorrect
+	}
+
+	orderClientID, err := strconv.ParseInt(o.InternalID, 10, 64)
+	if err != nil {
+		return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, err)
 	}
 
 	req := &order.NewRequest{
 		GID:           0,
-		CID:           time.Now().Unix() / 1000,
+		CID:           orderClientID,
 		Type:          typeOrder,
 		Symbol:        Pair,
 		Amount:        Amount,
@@ -417,12 +444,37 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) error {
 	}
 
 	b.lg.Debugf("Submitting order: %#v", req)
-	err := b.ws.SubmitOrder(b.ctx, req)
+	err = b.ws.SubmitOrder(b.ctx, req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	orderPipe := b.watchers.New(fmt.Sprint("wait order", orderClientID), EventOrderFilled, EventOrderNew, EventRequestFail)
+	defer b.watchers.Remove(fmt.Sprint("wait order", orderClientID))
+
+	Timout := time.NewTimer(3 * time.Second)
+	defer Timout.Stop()
+
+	for {
+		select {
+		case evt := <-orderPipe.Listen():
+			switch {
+			case evt.Type == EventRequestFail:
+				rr := evt.Payload.(RequestResult)
+				if rr.ID == o.InternalID {
+					return nil, errors.WrapMessage(rr.Err, rr.Msg)
+				}
+			case evt.Type == EventOrderFilled, evt.Type == EventOrderNew:
+				or := evt.Payload.(models.Order)
+				if or.InternalID == o.InternalID {
+					return &or, nil
+				}
+			}
+
+		case <-Timout.C:
+			return nil, ErrResultTimeOut
+		}
+	}
 }
 
 //func (b *BitFinex) CancelOrder(order *models.PutOrder) error
