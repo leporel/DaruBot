@@ -93,7 +93,7 @@ func startWatcher(t *testing.T, bf *BitFinex) func() {
 				if evt.Type == EventError {
 					t.Errorf("error: %v", evt.Payload)
 				}
-				t.Logf("event type: %v, payload: [%#v] \n", EventToString(evt.Type), evt.Payload)
+				t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
 				//fmt.Printf("\nevent type: %v, payload: [%#v] \n\n", evt.Type, evt.Payload)
 			case <-ctx.Done():
 				bf.RemoveWatcher("all_events")
@@ -110,6 +110,9 @@ func Test_BitfinexConnect(t *testing.T) {
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
+
+	watcherEnd := startWatcher(t, bf)
+	defer watcherEnd()
 
 	err = bf.Connect()
 	if err != nil {

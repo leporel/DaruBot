@@ -26,19 +26,21 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 )
 
 var (
-	supportEvents = []watcher.EventType{
-		EventError,
-		EventRequestSuccess,
-		EventOrderNew,
-		EventOrderFilled,
-		EventOrderPartiallyFilled,
-		EventWalletUpdate,
+	supportEventsBitfinex = watcher.EventsMap{
+		EventError:                reflect.TypeOf((*error)(nil)).Elem(),
+		EventRequestSuccess:       reflect.TypeOf(&RequestResult{}).Elem(),
+		EventRequestFail:          reflect.TypeOf(&RequestResult{}).Elem(),
+		EventOrderNew:             reflect.TypeOf(&models.Order{}).Elem(),
+		EventOrderFilled:          reflect.TypeOf(&models.Order{}).Elem(),
+		EventOrderPartiallyFilled: reflect.TypeOf(&models.Order{}).Elem(),
+		EventWalletUpdate:         reflect.TypeOf(&models.WalletCurrency{}).Elem(),
 	}
 )
 
@@ -80,6 +82,9 @@ func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger)
 	WebSocket := websocket.NewWithParams(p).Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
 	REST := rest.NewClient().Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
 
+	wManager := watcher.NewWatcherManager()
+	wManager.RegisterEvents(supportEventsBitfinex)
+
 	return &BitFinex{
 		ctx:             ctx,
 		ws:              WebSocket,
@@ -92,7 +97,7 @@ func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger)
 		positions:       &exchanges.BitfinexPositions{},
 		readyChan:       make(chan interface{}, 1),
 		disconnectChan:  make(chan interface{}, 1),
-		watchers:        watcher.NewWatcherManager(),
+		watchers:        wManager,
 	}, nil
 }
 
@@ -136,8 +141,8 @@ func (b *BitFinex) Ready() <-chan interface{} {
 	return b.readyChan
 }
 
-func (b *BitFinex) EventsList() []watcher.EventType {
-	return supportEvents
+func (b *BitFinex) EventsList() watcher.EventsMap {
+	return b.watchers.SupportEvents()
 }
 
 func (b *BitFinex) listen() {
@@ -328,7 +333,10 @@ func (b *BitFinex) RemoveWatcher(name string) {
 }
 
 func (b *BitFinex) emmit(EventT watcher.EventType, data interface{}) {
-	b.watchers.Emmit(watcher.NewEvent(EventT, data))
+	err := b.watchers.Emmit(watcher.NewEvent(EventT, data))
+	if err != nil {
+		b.lg.Error(err)
+	}
 }
 
 func (b *BitFinex) GetOrders() ([]Order, error) {
@@ -402,17 +410,17 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	case models.OrderTypeStop:
 		typeOrder = "STOP"
 		if o.StopPrice == 0 {
-			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadRequestParams, "stop price are not specified")
 		}
 		Price = o.StopPrice
 	case models.OrderTypeStopLimit:
 		typeOrder = "STOP LIMIT"
 		if o.Price == 0 {
-			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "limit price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadRequestParams, "limit price are not specified")
 		}
 		PriceAuxLimit = o.Price
 		if o.StopPrice == 0 {
-			return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, "stop price are not specified")
+			return nil, errors.WrapMessage(ErrOrderBadRequestParams, "stop price are not specified")
 		}
 		Price = o.StopPrice
 	default:
@@ -429,7 +437,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 
 	orderClientID, err := strconv.ParseInt(o.InternalID, 10, 64)
 	if err != nil {
-		return nil, errors.WrapMessage(ErrOrderBadPutOrderParams, err)
+		return nil, errors.WrapMessage(ErrOrderBadRequestParams, err)
 	}
 
 	req := &order.NewRequest{
@@ -440,7 +448,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		Amount:        Amount,
 		Price:         Price,
 		PriceAuxLimit: PriceAuxLimit,
-		AffiliateCode: "", // TODO https://www.bitfinex.com/affiliates/
+		AffiliateCode: "jXAX6tEPA",
 	}
 
 	b.lg.Debugf("Submitting order: %#v", req)

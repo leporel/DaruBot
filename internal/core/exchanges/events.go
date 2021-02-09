@@ -14,6 +14,7 @@ const (
 	EventOrderFilled
 	EventOrderNew
 	EventOrderUpdate
+	EventOrderCancel
 
 	EventPositionNew
 	EventPositionClosed
@@ -23,10 +24,6 @@ const (
 
 	EventError
 )
-
-func init() {
-
-}
 
 type RequestResult struct {
 	ID  string
@@ -50,6 +47,8 @@ func EventToString(t watcher.EventType) string {
 		return "EventOrderNew"
 	case EventOrderUpdate:
 		return "EventOrderUpdate"
+	case EventOrderCancel:
+		return "EventOrderCancel"
 	case EventPositionNew:
 		return "EventPositionNew"
 	case EventPositionClosed:

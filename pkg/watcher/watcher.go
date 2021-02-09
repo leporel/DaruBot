@@ -1,6 +1,10 @@
 package watcher
 
-import "sync"
+import (
+	"fmt"
+	"reflect"
+	"sync"
+)
 
 type event struct {
 	Type    EventType
@@ -8,6 +12,7 @@ type event struct {
 }
 
 type EventType uint8
+type EventsMap map[EventType]reflect.Type
 
 func NewEvent(eType EventType, payload interface{}) *event {
 	return &event{
@@ -49,13 +54,23 @@ func (w *Watcher) isListenType(eType EventType) bool {
 type WatcherManager struct {
 	mu       *sync.Mutex
 	watchers map[string]*Watcher
+	events   EventsMap
 }
 
 func NewWatcherManager() *WatcherManager {
 	return &WatcherManager{
 		mu:       &sync.Mutex{},
 		watchers: make(map[string]*Watcher),
+		events:   nil,
 	}
+}
+
+func (w *WatcherManager) RegisterEvents(eventsList map[EventType]reflect.Type) {
+	w.events = eventsList
+}
+
+func (w *WatcherManager) SupportEvents() EventsMap {
+	return w.events
 }
 
 func (w *WatcherManager) New(name string, eTypes ...EventType) *Watcher {
@@ -69,7 +84,11 @@ func (w *WatcherManager) New(name string, eTypes ...EventType) *Watcher {
 	return wh
 }
 
-func (w *WatcherManager) Emmit(evt *event) {
+func (w *WatcherManager) Emmit(evt *event) error {
+	if err := w.checkType(evt); err != nil {
+		return err
+	}
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -78,6 +97,18 @@ func (w *WatcherManager) Emmit(evt *event) {
 			wh.eventPipe <- evt
 		}
 	}
+
+	return nil
+}
+
+func (w *WatcherManager) checkType(evt *event) error {
+	if t, ok := w.events[evt.Type]; ok {
+		et := reflect.TypeOf(evt.Payload)
+		if t != et {
+			return fmt.Errorf("event contain wrong payload data: got (%s), expected (%s)\n", et, t)
+		}
+	}
+	return nil
 }
 
 func (w *WatcherManager) Remove(name string) bool {
