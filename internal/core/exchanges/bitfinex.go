@@ -260,7 +260,6 @@ func (b *BitFinex) listen() {
 				b.lg.Debugf("ORDER UPDATE %#v", data)
 
 				if strings.Contains(data.Status, "PARTIALLY FILLED") {
-					//b.lg.Infof("order %v was partially filled at %v, left amount %v", data.ID, data.Price, data.Amount)
 					b.emmit(EventOrderPartiallyFilled, *b.convertOrder(data))
 				}
 				b.lastUpdate = time.Now()
@@ -357,7 +356,7 @@ func (b *BitFinex) emmit(EventT watcher.EventType, data interface{}) {
 	}
 }
 
-func (b *BitFinex) IsHasUpdates(t time.Time) bool {
+func (b *BitFinex) HasUpdates(t time.Time) bool {
 	return t.Before(b.lastUpdate)
 }
 

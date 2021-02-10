@@ -26,7 +26,7 @@ type Exchange interface {
 	GetPositions() ([]*models.Position, error)
 	GetWallets() ([]*models.Wallets, error)
 	GetBalance() (models.BalanceUSD, error)
-	IsHasUpdates(t time.Time) bool
+	HasUpdates(t time.Time) bool
 
 	/* Requests */
 	PutOrder(order *models.PutOrder) (*models.Order, error)

@@ -6,11 +6,11 @@
 
 Trading bot, uses exchanges API for monitoring price and make decisions to place or close orders
 
-# Supports Exchanges
+## Supports Exchanges
 
 * Bitfinex
 
-# Features
+## Features
 
 ## Strategies
 
@@ -29,3 +29,15 @@ Make your own bot and provide token
 | Service          | Notifications     | Controls |
 | - | - | - |
 | Telegram       |  ✅      |  ✅  |
+
+## Development instructions
+
+when new feature added or bug fixed, bump it in `VERSION` file
+`CHANGELOG.md` contains only new features
+
+### Gitflow
+1. New branch from dev  
+1. Merge Requests -> dev  
+1. dev -> release  
+1. stable release -> master  
+

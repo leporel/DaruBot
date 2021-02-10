@@ -1,7 +1,2 @@
-##0.0.0
-### New
-    nothing
-### Change
-    nothing
-### Fixes
-    nothing
+## 0.1
+### First release
