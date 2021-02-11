@@ -85,12 +85,12 @@ func (w *WatcherManager) New(name string, eTypes ...EventType) *Watcher {
 }
 
 func (w *WatcherManager) Emmit(evt *event) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	if err := w.checkType(evt); err != nil {
 		return err
 	}
-
-	w.mu.Lock()
-	defer w.mu.Unlock()
 
 	for _, wh := range w.watchers {
 		if wh.isListenType(evt.Type) {

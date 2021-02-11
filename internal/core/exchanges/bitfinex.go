@@ -39,6 +39,7 @@ var (
 		EventRequestFail:          reflect.TypeOf(&RequestResult{}).Elem(),
 		EventOrderNew:             reflect.TypeOf(&models.Order{}).Elem(),
 		EventOrderFilled:          reflect.TypeOf(&models.Order{}).Elem(),
+		EventOrderCancel:          reflect.TypeOf(&models.Order{}).Elem(),
 		EventOrderPartiallyFilled: reflect.TypeOf(&models.Order{}).Elem(),
 		EventWalletUpdate:         reflect.TypeOf(&models.WalletCurrency{}).Elem(),
 	}
@@ -270,6 +271,9 @@ func (b *BitFinex) listen() {
 				if strings.Contains(data.Status, "EXECUTED") {
 					b.emmit(EventOrderFilled, *b.convertOrder(data))
 				}
+				if strings.Contains(data.Status, "CANCELED") {
+					b.emmit(EventOrderCancel, *b.convertOrder(data))
+				}
 
 				b.orders.Delete(data.ID)
 				b.lastUpdate = time.Now()
@@ -302,23 +306,44 @@ func (b *BitFinex) listen() {
 
 			case *notification.Notification:
 				b.lg.Debugf("NOTIFICATION NEW:  %#v", data)
+
+				ord := &order.Order{}
+
+				switch t := data.NotifyInfo.(type) {
+				case *order.Order:
+					ord = t
+				case *order.New:
+					ord = (*order.Order)(t)
+				case *order.Cancel:
+					ord = (*order.Order)(t)
+				}
+
+				ordID := ""
+
+				switch data.Type {
+				case "oc-req":
+					if ord != nil {
+						ordID = fmt.Sprint(ord.ID)
+					}
+				case "on-req":
+					if ord != nil {
+						ordID = fmt.Sprint(ord.CID)
+					}
+				}
+
+				meta := make(map[string]string)
+				if ordID != "" {
+					meta["order_id"] = ordID
+				}
+
 				switch data.Status {
 				case "ERROR", "FAILURE":
-					b.lg.Warn("REQUEST ERROR:  %#v", data)
-					switch data.Type {
-					case "on-req":
-						id := ""
-						if or, ok := data.NotifyInfo.(*order.New); ok {
-							id = fmt.Sprint(or.CID)
-						}
-						b.emmit(EventRequestFail, RequestResult{ID: id, Msg: data.Text, Err: ErrRequestError})
-					default:
-						b.emmit(EventRequestFail, RequestResult{ID: "", Msg: data.Text, Err: ErrRequestError})
-					}
+					b.lg.Warnf("REQUEST ERROR:  %#v", data)
+					b.emmit(EventRequestFail, RequestResult{Msg: data.Text, Err: ErrRequestError, Meta: meta})
 				case "SUCCESS":
-					b.emmit(EventRequestSuccess, RequestResult{Msg: data.Text})
+					b.emmit(EventRequestSuccess, RequestResult{Msg: data.Text, Meta: meta})
 				default:
-					b.lg.Warn("UNKNOWN NOTIFICATION:  %#v", data)
+					b.lg.Warnf("UNKNOWN NOTIFICATION:  %#v", data)
 				}
 
 			case error:
@@ -490,7 +515,7 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 			switch {
 			case evt.Type == EventRequestFail:
 				rr := evt.Payload.(RequestResult)
-				if rr.ID == o.InternalID {
+				if rr.Meta["order_id"] == o.InternalID {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
 				}
 			case evt.Type == EventOrderFilled, evt.Type == EventOrderNew:
@@ -506,7 +531,61 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	}
 }
 
-//func (b *BitFinex) CancelOrder(order *models.PutOrder) error
+func (b *BitFinex) CancelOrder(o *models.Order) error {
+	id, err := strconv.ParseInt(o.ID, 10, 64)
+	if err != nil {
+		return errors.WrapMessage(ErrOrderBadRequestParams, err)
+	}
+
+	var cid int64 = 0
+	date := "" // 2016-12-05
+	if id == 0 {
+		cid, err = strconv.ParseInt(o.ID, 10, 64)
+		if err != nil {
+			return errors.WrapMessage(ErrOrderBadRequestParams, err)
+		}
+		date = o.Date.Format("2006-01-02")
+	}
+
+	req := order.CancelRequest{
+		ID:      id,
+		CID:     cid,
+		CIDDate: date,
+	}
+
+	b.lg.Debugf("Canceling order: %#v", req)
+	err = b.ws.SubmitCancel(b.ctx, &req)
+	if err != nil {
+		return err
+	}
+
+	orderPipe := b.watchers.New(fmt.Sprint("wait order", req.ID, req.CID), EventOrderCancel, EventRequestFail)
+	defer b.watchers.Remove(fmt.Sprint("wait order", req.ID, req.CID))
+
+	Timout := time.NewTimer(3 * time.Second)
+	defer Timout.Stop()
+
+	for {
+		select {
+		case evt := <-orderPipe.Listen():
+			switch {
+			case evt.Type == EventRequestFail:
+				rr := evt.Payload.(RequestResult)
+				if rr.Meta["order_id"] == o.ID || rr.Meta["order_id"] == o.InternalID {
+					return errors.WrapMessage(rr.Err, rr.Msg)
+				}
+			case evt.Type == EventOrderCancel:
+				or := evt.Payload.(models.Order)
+				if or.ID == o.ID || or.InternalID == o.InternalID {
+					return nil
+				}
+			}
+
+		case <-Timout.C:
+			return ErrResultTimeOut
+		}
+	}
+}
 
 //func (b *BitFinex) ClosePosition(position *models.Position) (*models.Position, error) {
 //  use https://docs.bitfinex.com/docs/flag-values

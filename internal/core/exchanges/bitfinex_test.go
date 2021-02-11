@@ -158,7 +158,7 @@ func Test_BitfinexOrderAndPositionsList(t *testing.T) {
 	time.Sleep(1 * time.Second)
 }
 
-func Test_BitfinexSubmitOrder(t *testing.T) {
+func Test_BitfinexOrder(t *testing.T) {
 	bf, finish, err := newBitfinex(logger.DebugLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
@@ -178,19 +178,61 @@ func Test_BitfinexSubmitOrder(t *testing.T) {
 		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
 		Pair:       "tTESTBTC:TESTUSD",
 		Type:       models.OrderTypeLimit,
-		Amount:     0.00001,
-		Price:      42300,
+		Amount:     0.001,
+		Price:      300,
 		StopPrice:  0,
 		Margin:     false,
 	}
 
 	order, err := bf.PutOrder(newOrder)
 	if err != nil {
-		t.Errorf("error = %v", err)
+		t.Fatalf("error = %v", err)
 	}
-	t.Logf("Test result order: %#v", order)
+	t.Logf("Created order: %#v", order)
 
 	time.Sleep(3 * time.Second)
+
+	err = bf.CancelOrder(order)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	t.Logf("Canceled order: %#v", order)
+
+	time.Sleep(3 * time.Second)
+	finish()
+	time.Sleep(1 * time.Second)
+}
+
+func Test_BitfinexOrderCancelError(t *testing.T) {
+	bf, finish, err := newBitfinex(logger.DebugLevel)
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	watcherEnd := startWatcher(t, bf)
+	defer watcherEnd()
+
+	err = bf.Connect()
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	newOrder := &models.Order{
+		ID:         "34534534",
+		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
+	}
+
+	err = bf.CancelOrder(newOrder)
+	if err == nil {
+		t.Fatalf("dont recieved error")
+	}
+	if err == ErrResultTimeOut {
+		t.Fatalf("request timeout")
+	}
+
+	time.Sleep(1 * time.Second)
 	finish()
 	time.Sleep(1 * time.Second)
 }

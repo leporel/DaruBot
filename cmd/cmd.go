@@ -22,6 +22,7 @@ func Run() {
 	// TODO check new version on github
 
 	// TODO viper save default config command
+	// TODO viper get API keys from ENV too
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)

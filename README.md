@@ -8,9 +8,14 @@ Trading bot, uses exchanges API for monitoring price and make decisions to place
 
 ## Supports Exchanges
 
-* Bitfinex
+* Bitfinex  
+  * Exchange and Margin trading support
 
 ## Features
+
+## Instruction
+
+### Install bot
 
 ## Strategies
 
@@ -20,19 +25,19 @@ dumb strategy, like your 3-year-old sister saw the price chart for the first tim
 
 ## Integrations
 
-Provide notifications and commands like start/stop, close all positions.  
+Provide notifications and commands like start/stop, close positions.  
+
+| Service          | Notifications     | Controls | 
+| - | - | - |
+| Telegram       |  ✅      |  ✅  |
 
 ### Telegram
 
 Make your own bot and provide token
 
-| Service          | Notifications     | Controls |
-| - | - | - |
-| Telegram       |  ✅      |  ✅  |
-
 ## Development instructions
 
-when new feature added or bug fixed, bump it in `VERSION` file
+When new feature added or bug fixed, bump it in `VERSION` file
 `CHANGELOG.md` contains only new features
 
 ### Gitflow

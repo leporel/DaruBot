@@ -26,9 +26,10 @@ const (
 )
 
 type RequestResult struct {
-	ID  string
-	Msg string
-	Err error
+	ReqID string
+	Msg   string
+	Err   error
+	Meta  map[string]string
 }
 
 func EventToString(t watcher.EventType) string {

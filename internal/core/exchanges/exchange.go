@@ -18,6 +18,8 @@ type Exchange interface {
 	RemoveWatcher(name string)
 	EventsList() watcher.EventsMap
 
+	/* Ticker */
+
 	/* Tools */
 	CheckPair(pair string, margin bool) error
 
