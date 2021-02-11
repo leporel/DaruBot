@@ -17,6 +17,7 @@ const (
 	EventOrderCancel
 
 	EventPositionNew
+	EventPositionUpdate
 	EventPositionClosed
 
 	EventRequestSuccess
@@ -54,6 +55,8 @@ func EventToString(t watcher.EventType) string {
 		return "EventPositionNew"
 	case EventPositionClosed:
 		return "EventPositionClosed"
+	case EventPositionUpdate:
+		return "EventPositionUpdate"
 	case EventRequestSuccess:
 		return "EventRequestSuccess"
 	case EventRequestFail:

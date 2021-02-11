@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 type OrderType string
 
@@ -41,8 +44,32 @@ func (o *Order) GetID() string {
 	return o.ID
 }
 
+func (o *Order) GetIDAsInt() int64 {
+	if o.ID == "" {
+		return 0
+	}
+
+	id, err := strconv.ParseInt(o.ID, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 func (o *Order) GetInternalID() string {
 	return o.InternalID
+}
+
+func (o *Order) GetInternalIDAsInt() int64 {
+	if o.InternalID == "" {
+		return 0
+	}
+
+	id, err := strconv.ParseInt(o.InternalID, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
 }
 
 func (o *Order) GetPrice() float64 {

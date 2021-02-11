@@ -51,40 +51,44 @@ func (w *Watcher) isListenType(eType EventType) bool {
 	return false
 }
 
-type WatcherManager struct {
+type Manager struct {
 	mu       *sync.Mutex
 	watchers map[string]*Watcher
 	events   EventsMap
 }
 
-func NewWatcherManager() *WatcherManager {
-	return &WatcherManager{
+func NewWatcherManager() *Manager {
+	return &Manager{
 		mu:       &sync.Mutex{},
 		watchers: make(map[string]*Watcher),
 		events:   nil,
 	}
 }
 
-func (w *WatcherManager) RegisterEvents(eventsList map[EventType]reflect.Type) {
+func (w *Manager) RegisterEvents(eventsList map[EventType]reflect.Type) {
 	w.events = eventsList
 }
 
-func (w *WatcherManager) SupportEvents() EventsMap {
+func (w *Manager) SupportEvents() EventsMap {
 	return w.events
 }
 
-func (w *WatcherManager) New(name string, eTypes ...EventType) *Watcher {
+func (w *Manager) New(name string, eTypes ...EventType) (*Watcher, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if _, ok := w.watchers[name]; ok {
+		return nil, fmt.Errorf("watcher name '%s' already exist", name)
+	}
 
 	wh := newWatcher(eTypes...)
 
 	w.watchers[name] = wh
 
-	return wh
+	return wh, nil
 }
 
-func (w *WatcherManager) Emmit(evt *event) error {
+func (w *Manager) Emmit(evt *event) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -101,7 +105,7 @@ func (w *WatcherManager) Emmit(evt *event) error {
 	return nil
 }
 
-func (w *WatcherManager) checkType(evt *event) error {
+func (w *Manager) checkType(evt *event) error {
 	if t, ok := w.events[evt.Type]; ok {
 		et := reflect.TypeOf(evt.Payload)
 		if t != et {
@@ -111,7 +115,7 @@ func (w *WatcherManager) checkType(evt *event) error {
 	return nil
 }
 
-func (w *WatcherManager) Remove(name string) bool {
+func (w *Manager) Remove(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 

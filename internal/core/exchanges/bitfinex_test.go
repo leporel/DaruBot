@@ -93,8 +93,8 @@ func startWatcher(t *testing.T, bf *BitFinex) func() {
 				if evt.Type == EventError {
 					t.Errorf("error: %v", evt.Payload)
 				}
-				t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
-				//fmt.Printf("\nevent type: %v, payload: [%#v] \n\n", evt.Type, evt.Payload)
+				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
+				fmt.Printf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
 			case <-ctx.Done():
 				bf.RemoveWatcher("all_events")
 				return
@@ -190,7 +190,15 @@ func Test_BitfinexOrder(t *testing.T) {
 	}
 	t.Logf("Created order: %#v", order)
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
+
+	order, err = bf.UpdateOrder(order.ID, 500, 0, 0.002)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	t.Logf("Updated order: %#v", order)
+
+	time.Sleep(2 * time.Second)
 
 	err = bf.CancelOrder(order)
 	if err != nil {
@@ -233,6 +241,80 @@ func Test_BitfinexOrderCancelError(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
+	finish()
+	time.Sleep(1 * time.Second)
+}
+
+func Test_BitfinexTestPosition(t *testing.T) {
+	bf, finish, err := newBitfinex(logger.DebugLevel)
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	watcherEnd := startWatcher(t, bf)
+	defer watcherEnd()
+
+	err = bf.Connect()
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	newOrder := &models.PutOrder{
+		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
+		Pair:       "tTESTBTC:TESTUSD",
+		Type:       models.OrderTypeMarket,
+		Amount:     0.001,
+		Price:      0,
+		StopPrice:  0,
+		Margin:     true,
+	}
+
+	wh := bf.RegisterWatcher("new_position", EventPositionNew, EventPositionUpdate)
+	defer bf.RemoveWatcher("new_position")
+
+	Timout := time.NewTimer(10 * time.Second)
+	defer Timout.Stop()
+
+	go func() {
+		for {
+			select {
+			case pos := <-wh.Listen():
+				if pos.Payload.(models.Position).Pair == newOrder.Pair {
+					t.Logf("New position: %#v", pos)
+					return
+				}
+			case <-Timout.C:
+				t.Fatalf("wait new position time out")
+			}
+		}
+	}()
+
+	order, err := bf.PutOrder(newOrder)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	t.Logf("Created order: %#v", order)
+
+	time.Sleep(1 * time.Second)
+
+	ps, err := bf.GetPositions()
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	if len(ps) == 0 {
+		t.Fatalf("positions are not appeared %s", err)
+	}
+
+	pos, err := bf.ClosePosition(ps[0])
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	t.Logf("Position closed: %#v", pos)
+
+	time.Sleep(3 * time.Second)
 	finish()
 	time.Sleep(1 * time.Second)
 }

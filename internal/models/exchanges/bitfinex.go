@@ -192,6 +192,7 @@ func BitfinexPositionToModel(po interface{}) (*models.Position, bool) {
 	}
 
 	rs.Meta["Exchange"] = ExchangeTypeBitfinex
+	rs.Meta["Status"] = p.Status
 
 	return rs, true
 }

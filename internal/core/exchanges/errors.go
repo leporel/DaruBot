@@ -7,10 +7,14 @@ var (
 	ErrResultTimeOut = errors.New("WEBSOCKET WAIT REQUEST RESULT TIMEOUT")
 
 	ErrWebsocketError = errors.New("WEBSOCKET ERROR")
-	ErrRequestError   = errors.New("REQUEST ERROR")
+
+	ErrRequestError         = errors.New("REQUEST ERROR")
+	ErrInvalidRequestParams = errors.New("INVALID REQUEST PARAMETERS")
 
 	ErrOrderTypeNotSupported = errors.New("ORDER TYPE IS NOT SUPPORTED")
-	ErrOrderBadRequestParams = errors.New("PUT ORDER BAD PARAMETERS")
+	ErrOrderNotFound         = errors.New("ORDER NOT FOUND")
+
+	ErrPositionNotFound = errors.New("POSITION NOT FOUND")
 
 	ErrPairIncorrect    = errors.New("PAIR INCORRECT")
 	ErrPairNotSupported = errors.New("PAIR NOT SUPPORTED")

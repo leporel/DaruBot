@@ -32,6 +32,7 @@ type Exchange interface {
 
 	/* Requests */
 	PutOrder(order *models.PutOrder) (*models.Order, error)
+	UpdateOrder(orderID string, price float64, priceStop float64, amount float64) (*models.Order, error)
 	CancelOrder(order *models.Order) error
 	ClosePosition(position *models.Position) (*models.Position, error)
 }
