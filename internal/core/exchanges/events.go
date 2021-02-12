@@ -1,29 +1,30 @@
 package exchanges
 
 import (
+	"DaruBot/internal/models"
 	"DaruBot/pkg/watcher"
 )
 
-const (
-	EventBookState watcher.EventType = iota
-	EventPairState
+var (
+	EventBookState = watcher.NewEvent(models.EventsModuleExchange, "EventBookState")
+	EventPairState = watcher.NewEvent(models.EventsModuleExchange, "EventPairState")
 
-	EventWalletUpdate
+	EventWalletUpdate = watcher.NewEvent(models.EventsModuleExchange, "EventWalletUpdate")
 
-	EventOrderPartiallyFilled
-	EventOrderFilled
-	EventOrderNew
-	EventOrderUpdate
-	EventOrderCancel
+	EventOrderPartiallyFilled = watcher.NewEvent(models.EventsModuleExchange, "EventOrderPartiallyFilled")
+	EventOrderFilled          = watcher.NewEvent(models.EventsModuleExchange, "EventOrderFilled")
+	EventOrderNew             = watcher.NewEvent(models.EventsModuleExchange, "EventOrderNew")
+	EventOrderUpdate          = watcher.NewEvent(models.EventsModuleExchange, "EventOrderUpdate")
+	EventOrderCancel          = watcher.NewEvent(models.EventsModuleExchange, "EventOrderCancel")
 
-	EventPositionNew
-	EventPositionUpdate
-	EventPositionClosed
+	EventPositionNew    = watcher.NewEvent(models.EventsModuleExchange, "EventPositionNew")
+	EventPositionUpdate = watcher.NewEvent(models.EventsModuleExchange, "EventPositionUpdate")
+	EventPositionClosed = watcher.NewEvent(models.EventsModuleExchange, "EventPositionClosed")
 
-	EventRequestSuccess
-	EventRequestFail
+	EventRequestSuccess = watcher.NewEvent(models.EventsModuleExchange, "EventRequestSuccess")
+	EventRequestFail    = watcher.NewEvent(models.EventsModuleExchange, "EventRequestFail")
 
-	EventError
+	EventError = watcher.NewEvent(models.EventsModuleExchange, "EventError")
 )
 
 type RequestResult struct {
@@ -31,39 +32,4 @@ type RequestResult struct {
 	Msg   string
 	Err   error
 	Meta  map[string]string
-}
-
-func EventToString(t watcher.EventType) string {
-	switch t {
-	case EventBookState:
-		return "EventBookState"
-	case EventPairState:
-		return "EventPairState"
-	case EventWalletUpdate:
-		return "EventWalletUpdate"
-	case EventOrderPartiallyFilled:
-		return "EventOrderPartiallyFilled"
-	case EventOrderFilled:
-		return "EventOrderFilled"
-	case EventOrderNew:
-		return "EventOrderNew"
-	case EventOrderUpdate:
-		return "EventOrderUpdate"
-	case EventOrderCancel:
-		return "EventOrderCancel"
-	case EventPositionNew:
-		return "EventPositionNew"
-	case EventPositionClosed:
-		return "EventPositionClosed"
-	case EventPositionUpdate:
-		return "EventPositionUpdate"
-	case EventRequestSuccess:
-		return "EventRequestSuccess"
-	case EventRequestFail:
-		return "EventRequestFail"
-	case EventError:
-		return "EventError"
-	default:
-		return ""
-	}
 }

@@ -4,6 +4,7 @@ import (
 	"DaruBot/internal/config"
 	"DaruBot/internal/models"
 	"DaruBot/pkg/logger"
+	"DaruBot/pkg/watcher"
 	"context"
 	"fmt"
 	"os"
@@ -76,7 +77,9 @@ func newBitfinex(level logger.Level) (*BitFinex, func(), error) {
 	lg := logger.New(os.Stdout, level)
 	ctx, finish := context.WithCancel(context.Background())
 
-	bf, err := NewBitFinex(ctx, config.Config, lg)
+	wManager := watcher.NewWatcherManager()
+
+	bf, err := NewBitFinex(ctx, config.Config, wManager, lg)
 
 	return bf, finish, err
 }
@@ -85,18 +88,18 @@ func startWatcher(t *testing.T, bf *BitFinex) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		wh := bf.RegisterWatcher("all_events")
+		wh := bf.watchers.MustNew("all_events")
 
 		for {
 			select {
 			case evt := <-wh.Listen():
-				if evt.Type == EventError {
+				if evt.Is(EventError) {
 					t.Errorf("error: %v", evt.Payload)
 				}
-				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
-				fmt.Printf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Type), evt.Type, evt.Payload)
+				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Head), evt.Head, evt.Payload)
+				fmt.Printf("event: %v(%v), payload: [%#v] \n", evt.GetModuleType(), evt.GetEventName(), evt.Payload)
 			case <-ctx.Done():
-				bf.RemoveWatcher("all_events")
+				bf.watchers.Remove("all_events")
 				return
 			}
 		}
@@ -271,8 +274,8 @@ func Test_BitfinexTestPosition(t *testing.T) {
 		Margin:     true,
 	}
 
-	wh := bf.RegisterWatcher("new_position", EventPositionNew, EventPositionUpdate)
-	defer bf.RemoveWatcher("new_position")
+	wh := bf.watchers.MustNew("new_position", EventPositionNew, EventPositionUpdate)
+	defer bf.watchers.Remove("new_position")
 
 	Timout := time.NewTimer(10 * time.Second)
 	defer Timout.Stop()

@@ -14,9 +14,7 @@ type Exchange interface {
 	Ready() <-chan interface{}
 
 	/* Watcher */
-	RegisterWatcher(name string, eType ...watcher.EventType) *watcher.Watcher
-	RemoveWatcher(name string)
-	EventsList() watcher.EventsMap
+	SupportEvents() watcher.EventsMap
 
 	/* Ticker */
 

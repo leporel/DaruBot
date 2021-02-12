@@ -77,7 +77,7 @@ type BitFinex struct {
 	watchers *watcher.Manager
 }
 
-func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger) (*BitFinex, error) {
+func NewBitFinex(ctx context.Context, c config.Configurations, wManager *watcher.Manager, lg logger.Logger) (*BitFinex, error) {
 	p := websocket.NewDefaultParameters()
 	p.ManageOrderbook = false
 	p.LogTransport = false
@@ -93,8 +93,7 @@ func NewBitFinex(ctx context.Context, c config.Configurations, lg logger.Logger)
 	WebSocket := websocket.NewWithParams(p).Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
 	REST := rest.NewClient().Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
 
-	wManager := watcher.NewWatcherManager()
-	wManager.RegisterEvents(supportEventsBitfinex)
+	wManager.RegisterEvents(string(exchanges.ExchangeTypeBitfinex), supportEventsBitfinex)
 
 	return &BitFinex{
 		ctx:             ctx,
@@ -157,7 +156,7 @@ func (b *BitFinex) Ready() <-chan interface{} {
 }
 
 func (b *BitFinex) EventsList() watcher.EventsMap {
-	return b.watchers.SupportEvents()
+	return b.watchers.SupportEvents(string(exchanges.ExchangeTypeBitfinex))
 }
 
 func (b *BitFinex) listen() {
@@ -388,20 +387,8 @@ func (b *BitFinex) listen() {
 	}
 }
 
-func (b *BitFinex) RegisterWatcher(name string, eType ...watcher.EventType) *watcher.Watcher {
-	wh, err := b.watchers.New(name, eType...)
-	if err != nil {
-		b.lg.Error(err)
-	}
-	return wh
-}
-
-func (b *BitFinex) RemoveWatcher(name string) {
-	b.watchers.Remove(name)
-}
-
-func (b *BitFinex) emmit(EventT watcher.EventType, data interface{}) {
-	err := b.watchers.Emmit(watcher.NewEvent(EventT, data))
+func (b *BitFinex) emmit(eventHead watcher.EventHead, data interface{}) {
+	err := b.watchers.Emmit(watcher.BuildEvent(eventHead, string(exchanges.ExchangeTypeBitfinex), data))
 	if err != nil {
 		b.lg.Error(err)
 	}
@@ -549,12 +536,12 @@ func (b *BitFinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Type == EventRequestFail:
+			case evt.Is(EventRequestFail):
 				rr := evt.Payload.(RequestResult)
 				if rr.Meta["order_id"] == o.InternalID {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Type == EventOrderFilled, evt.Type == EventOrderNew:
+			case evt.Is(EventOrderFilled), evt.Is(EventOrderNew):
 				or := evt.Payload.(models.Order)
 				if or.InternalID == o.InternalID {
 					return &or, nil
@@ -609,12 +596,12 @@ func (b *BitFinex) CancelOrder(o *models.Order) error {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Type == EventRequestFail:
+			case evt.Is(EventRequestFail):
 				rr := evt.Payload.(RequestResult)
 				if rr.Meta["order_id"] == o.ID || rr.Meta["order_id"] == o.InternalID {
 					return errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Type == EventOrderCancel:
+			case evt.Is(EventOrderCancel):
 				or := evt.Payload.(models.Order)
 				if or.ID == o.ID || or.InternalID == o.InternalID {
 					return nil
@@ -677,7 +664,7 @@ func (b *BitFinex) UpdateOrder(orderID string, price float64, priceStop float64,
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Type == EventOrderUpdate:
+			case evt.Is(EventOrderUpdate):
 				ord := evt.Payload.(models.Order)
 				if ord.ID == orderID {
 					return &ord, nil
@@ -732,12 +719,12 @@ func (b *BitFinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		select {
 		case evt := <-positionPipe.Listen():
 			switch {
-			case evt.Type == EventRequestFail:
+			case evt.Is(EventRequestFail):
 				rr := evt.Payload.(RequestResult)
 				if rr.Meta["order_id"] == fmt.Sprint(req.CID) {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Type == EventPositionClosed:
+			case evt.Is(EventPositionClosed):
 				pos := evt.Payload.(models.Position)
 				if pos.ID == p.ID {
 					return &prevStatePos, nil
