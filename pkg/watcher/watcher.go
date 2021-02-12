@@ -24,8 +24,9 @@ type EventHead interface {
 }
 
 type eventHead struct {
-	ModuleType ModuleType
-	EventName  string
+	ModuleType  ModuleType
+	EventName   string
+	payloadType string
 }
 
 func (e *eventHead) GetModuleType() ModuleType {
@@ -36,14 +37,24 @@ func (e *eventHead) GetEventName() string {
 	return e.EventName
 }
 
-func NewEvent(moduleType ModuleType, name string) *eventHead {
+func NewEvent(moduleType ModuleType, name string, dataType interface{}) *eventHead {
+	pT := ""
+	if dataType != nil {
+		dt := reflect.TypeOf(dataType)
+		pT = reflect.TypeOf(dataType).String()
+		if dt.Kind() == reflect.Ptr {
+			pT = dt.Elem().String()
+		}
+	}
+
 	return &eventHead{
-		ModuleType: moduleType,
-		EventName:  name,
+		ModuleType:  moduleType,
+		EventName:   name,
+		payloadType: pT,
 	}
 }
 
-type EventsMap map[EventHead]reflect.Type
+type EventsMap []EventHead
 
 func BuildEvent(head EventHead, moduleName string, payload interface{}) *event {
 	return &event{
@@ -97,7 +108,7 @@ func NewWatcherManager() *Manager {
 	}
 }
 
-func (w *Manager) RegisterEvents(moduleName string, events map[EventHead]reflect.Type) {
+func (w *Manager) RegisterEvents(moduleName string, events EventsMap) {
 	w.modulesTypes[moduleName] = events
 }
 
@@ -132,12 +143,12 @@ func (w *Manager) MustNew(name string, heads ...EventHead) *Watcher {
 }
 
 func (w *Manager) Emmit(evt *event) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if err := w.checkTypeUnsafe(evt); err != nil {
 		return err
 	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	for _, wh := range w.watchers {
 		if wh.isListenType(evt.EventHead) {
@@ -149,14 +160,12 @@ func (w *Manager) Emmit(evt *event) error {
 }
 
 func (w *Manager) checkTypeUnsafe(evt *event) error {
-	if module, exist := w.modulesTypes[evt.ModuleName]; exist {
-		if t, ok := module[evt.EventHead]; ok {
-			et := reflect.TypeOf(evt.Payload)
-			if t != et {
-				return fmt.Errorf("event contain wrong payload data: got (%s), expected (%s)\n", et, t)
-			}
-		}
+	regT := evt.EventHead.(*eventHead).payloadType
+	plT := reflect.TypeOf(evt.Payload).String()
+	if regT != "" && regT != plT {
+		return fmt.Errorf("event contain wrong payload data: got (%s), expected (%s)\n", plT, regT)
 	}
+
 	return nil
 }
 

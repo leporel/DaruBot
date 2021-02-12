@@ -29,7 +29,6 @@ import (
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -37,24 +36,24 @@ import (
 
 var (
 	supportEventsBitfinex = watcher.EventsMap{
-		exchanges2.EventError:          reflect.TypeOf((*error)(nil)).Elem(),
-		exchanges2.EventRequestSuccess: reflect.TypeOf(&exchanges2.RequestResult{}).Elem(),
-		exchanges2.EventRequestFail:    reflect.TypeOf(&exchanges2.RequestResult{}).Elem(),
+		exchanges2.EventError,
+		exchanges2.EventRequestSuccess,
+		exchanges2.EventRequestFail,
 
-		exchanges2.EventTickerState: reflect.TypeOf(&models.Ticker{}).Elem(),
-		exchanges2.EventCandleState: reflect.TypeOf(&models.Candle{}).Elem(),
+		exchanges2.EventTickerState,
+		exchanges2.EventCandleState,
 
-		exchanges2.EventOrderNew:             reflect.TypeOf(&models.Order{}).Elem(),
-		exchanges2.EventOrderFilled:          reflect.TypeOf(&models.Order{}).Elem(),
-		exchanges2.EventOrderCancel:          reflect.TypeOf(&models.Order{}).Elem(),
-		exchanges2.EventOrderPartiallyFilled: reflect.TypeOf(&models.Order{}).Elem(),
-		exchanges2.EventOrderUpdate:          reflect.TypeOf(&models.Order{}).Elem(),
+		exchanges2.EventOrderNew,
+		exchanges2.EventOrderFilled,
+		exchanges2.EventOrderCancel,
+		exchanges2.EventOrderPartiallyFilled,
+		exchanges2.EventOrderUpdate,
 
-		exchanges2.EventPositionNew:    reflect.TypeOf(&models.Position{}).Elem(),
-		exchanges2.EventPositionClosed: reflect.TypeOf(&models.Position{}).Elem(),
-		exchanges2.EventPositionUpdate: reflect.TypeOf(&models.Position{}).Elem(),
+		exchanges2.EventPositionNew,
+		exchanges2.EventPositionClosed,
+		exchanges2.EventPositionUpdate,
 
-		exchanges2.EventWalletUpdate: reflect.TypeOf(&models.WalletCurrency{}).Elem(),
+		exchanges2.EventWalletUpdate,
 	}
 )
 
