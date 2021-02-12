@@ -1,9 +1,12 @@
 package exchanges
 
-import "DaruBot/pkg/errors"
+import (
+	"DaruBot/pkg/errors"
+)
 
 var (
 	ErrNoConnect     = errors.New("WEBSOCKET NOT CONNECTED")
+	ErrNotOperate    = errors.New("PLATFORM ARE NOT OPERATE")
 	ErrResultTimeOut = errors.New("WEBSOCKET WAIT REQUEST RESULT TIMEOUT")
 
 	ErrWebsocketError = errors.New("WEBSOCKET ERROR")

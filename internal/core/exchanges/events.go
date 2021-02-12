@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	EventBookState = watcher.NewEvent(models.EventsModuleExchange, "EventBookState")
-	EventPairState = watcher.NewEvent(models.EventsModuleExchange, "EventPairState")
+	EventTickerState = watcher.NewEvent(models.EventsModuleExchange, "EventTickerState")
+	EventCandleState = watcher.NewEvent(models.EventsModuleExchange, "EventCandleState")
 
 	EventWalletUpdate = watcher.NewEvent(models.EventsModuleExchange, "EventWalletUpdate")
 

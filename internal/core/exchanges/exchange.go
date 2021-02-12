@@ -17,6 +17,12 @@ type Exchange interface {
 	SupportEvents() watcher.EventsMap
 
 	/* Ticker */
+	GetTicker(pair string) (*models.Ticker, error)
+
+	GetSubscriptions() *models.Subscriptions
+	SubscribeTicker(pair string) (subID string, err error)
+	SubscribeCandles(pair string, resolution models.CandleResolution) (subID string, err error)
+	Unsubscribe(subID string) error
 
 	/* Tools */
 	CheckPair(pair string, margin bool) error
