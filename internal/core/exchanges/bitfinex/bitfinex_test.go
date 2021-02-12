@@ -381,7 +381,9 @@ func Test_BitfinexGetCandles(t *testing.T) {
 	}
 	t.Logf("Candels: %#v len(%v)", candels, len(candels.Candles))
 	for _, c := range candels.Candles {
-		fmt.Printf("%#v\n", c)
+		fmt.Printf("[%s] Open:%v Close:%v High:%v Low:%v Volume:%v \n",
+			c.Date.Format("2006-01-02T15:04:05"),
+			c.Open, c.Close, c.High, c.Low, c.Volume)
 	}
 
 	time.Sleep(1 * time.Second)

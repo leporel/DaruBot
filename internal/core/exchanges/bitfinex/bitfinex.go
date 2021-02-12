@@ -476,7 +476,7 @@ func (b *Bitfinex) SubscribeTicker(pair string) (string, error) {
 }
 
 func (b *Bitfinex) SubscribeCandles(pair string, resolution models.CandleResolution) (string, error) {
-	cres, err := bitfinex.CandleResolutionToBitfinex(resolution)
+	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
 		return "", err
 	}
@@ -593,7 +593,7 @@ func (b *Bitfinex) GetTicker(pair string) (*models.Ticker, error) {
 
 // https://docs.bitfinex.com/reference#rest-public-candles
 func (b *Bitfinex) GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
-	cres, err := bitfinex.CandleResolutionToBitfinex(resolution)
+	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
 		return nil, err
 	}
