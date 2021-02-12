@@ -360,3 +360,31 @@ func Test_BitfinexTicker(t *testing.T) {
 	finish()
 	time.Sleep(1 * time.Second)
 }
+
+func Test_BitfinexGetCandles(t *testing.T) {
+	bf, finish, err := newBf(logger.DebugLevel)
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	watcherEnd := startWatcher(t, bf)
+	defer watcherEnd()
+
+	err = bf.Connect()
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+
+	candels, err := bf.GetCandles("tTESTBTC:TESTUSD", models.OneHour, time.Now().Add(-time.Hour*24*1), time.Now())
+	if err != nil {
+		t.Errorf("error = %v", err)
+	}
+	t.Logf("Candels: %#v len(%v)", candels, len(candels.Candles))
+	for _, c := range candels.Candles {
+		fmt.Printf("%#v\n", c)
+	}
+
+	time.Sleep(1 * time.Second)
+	finish()
+	time.Sleep(1 * time.Second)
+}

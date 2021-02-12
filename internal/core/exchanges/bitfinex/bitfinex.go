@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/balanceinfo"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/candle"
+	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/common"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/notification"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/order"
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/position"
@@ -588,6 +589,38 @@ func (b *Bitfinex) GetTicker(pair string) (*models.Ticker, error) {
 		return nil, err
 	}
 	return b.convertTicker(t), nil
+}
+
+// https://docs.bitfinex.com/reference#rest-public-candles
+func (b *Bitfinex) GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
+	cres, err := bitfinex.CandleResolutionToBitfinex(resolution)
+	if err != nil {
+		return nil, err
+	}
+
+	cs, err := b.rest.Candles.HistoryWithQuery(
+		pair,
+		cres,
+		common.Mts(tools.TimeToMilliseconds(start)),
+		common.Mts(tools.TimeToMilliseconds(end)),
+		1000, // Max 10000
+		1,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rs := &models.Candles{
+		Pair:       pair,
+		Resolution: resolution,
+		Candles:    make([]*models.Candle, 0, len(cs.Snapshot)),
+	}
+
+	for _, c := range cs.Snapshot {
+		rs.Candles = append(rs.Candles, b.convertCandle(c))
+	}
+
+	return rs, nil
 }
 
 // PutOrder https://docs.bitfinex.com/reference#ws-auth-input-order-new

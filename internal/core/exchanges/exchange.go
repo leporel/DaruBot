@@ -18,6 +18,7 @@ type Exchange interface {
 
 	/* Ticker */
 	GetTicker(pair string) (*models.Ticker, error)
+	GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error)
 
 	GetSubscriptions() *models.Subscriptions
 	SubscribeTicker(pair string) (subID string, err error)
