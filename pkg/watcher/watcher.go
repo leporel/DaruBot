@@ -26,7 +26,7 @@ type EventHead interface {
 type eventHead struct {
 	ModuleType  ModuleType
 	EventName   string
-	payloadType string
+	payloadType reflect.Type
 }
 
 func (e *eventHead) GetModuleType() ModuleType {
@@ -38,12 +38,12 @@ func (e *eventHead) GetEventName() string {
 }
 
 func NewEvent(moduleType ModuleType, name string, dataType interface{}) *eventHead {
-	pT := ""
+	var pT reflect.Type
 	if dataType != nil {
 		dt := reflect.TypeOf(dataType)
-		pT = reflect.TypeOf(dataType).String()
+		pT = dt
 		if dt.Kind() == reflect.Ptr {
-			pT = dt.Elem().String()
+			pT = dt.Elem()
 		}
 	}
 
@@ -143,7 +143,7 @@ func (w *Manager) MustNew(name string, heads ...EventHead) *Watcher {
 }
 
 func (w *Manager) Emmit(evt *event) error {
-	if err := w.checkTypeUnsafe(evt); err != nil {
+	if err := w.checkType(evt); err != nil {
 		return err
 	}
 
@@ -159,11 +159,11 @@ func (w *Manager) Emmit(evt *event) error {
 	return nil
 }
 
-func (w *Manager) checkTypeUnsafe(evt *event) error {
+func (w *Manager) checkType(evt *event) error {
 	regT := evt.EventHead.(*eventHead).payloadType
-	plT := reflect.TypeOf(evt.Payload).String()
-	if regT != "" && regT != plT {
-		return fmt.Errorf("event contain wrong payload data: got (%s), expected (%s)\n", plT, regT)
+	plT := reflect.TypeOf(evt.Payload)
+	if regT != nil && regT != plT {
+		return fmt.Errorf("event contain wrong payload type: got (%s), expected (%s)\n", plT, regT)
 	}
 
 	return nil

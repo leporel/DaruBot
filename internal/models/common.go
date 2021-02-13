@@ -1,7 +1,9 @@
 package models
 
+import "DaruBot/pkg/watcher"
+
 const (
-	EventsModuleExchange uint8 = iota
+	EventsModuleExchange watcher.ModuleType = iota
 )
 
 type ExchangeType string

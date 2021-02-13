@@ -1,26 +1,30 @@
 package watcher
 
 import (
-	"DaruBot/internal/models"
 	"reflect"
 	"testing"
 )
 
-func BenchmarkType(b *testing.B) {
-	tp := reflect.TypeOf(&models.WalletCurrency{}).Elem()
+type S struct {
+	foo string
+	bar string
+}
+
+func BenchmarkTypeString(b *testing.B) {
+	tp := reflect.TypeOf(&S{}).Elem()
 	str := tp.String()
 	for i := 0; i < b.N; i++ {
-		tp2 := reflect.TypeOf(&models.WalletCurrency{}).Elem()
+		tp2 := reflect.TypeOf(&S{}).Elem()
 		if str == tp2.String() {
 			// cool
 		}
 	}
 }
 
-func BenchmarkTypeString(b *testing.B) {
-	tp := reflect.TypeOf(&models.WalletCurrency{}).Elem()
+func BenchmarkType(b *testing.B) {
+	tp := reflect.TypeOf(&S{}).Elem()
 	for i := 0; i < b.N; i++ {
-		tp2 := reflect.TypeOf(&models.WalletCurrency{}).Elem()
+		tp2 := reflect.TypeOf(&S{}).Elem()
 		if tp == tp2 {
 			// cool
 		}
