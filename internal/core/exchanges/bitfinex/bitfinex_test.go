@@ -94,7 +94,7 @@ func startWatcher(t *testing.T, bf *Bitfinex) func() {
 		for {
 			select {
 			case evt := <-wh.Listen():
-				if evt.Is(exchanges.EventError) {
+				if evt.Is(models.EventError) {
 					t.Fatalf("error: %v", evt.Payload)
 				}
 				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Head), evt.Head, evt.Payload)
@@ -275,7 +275,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 		Margin:     true,
 	}
 
-	wh := bf.watchers.MustNew("new_position", exchanges.EventPositionNew, exchanges.EventPositionUpdate)
+	wh := bf.watchers.MustNew("new_position", models.EventPositionNew, models.EventPositionUpdate)
 	defer bf.watchers.Remove("new_position")
 
 	Timout := time.NewTimer(10 * time.Second)

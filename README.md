@@ -27,9 +27,9 @@ dumb strategy, like your 3-year-old sister saw the price chart for the first tim
 
 Provide notifications and commands like start/stop, close positions.  
 
-| Service          | Notifications     | Controls | 
-| - | - | - |
-| Telegram       |  ✅      |  ✅  |
+| Service          | Description | 
+| - | - |
+| Telegram       |  Notifications <br>  Controls |
 
 ### Telegram
 
@@ -37,12 +37,10 @@ Make your own bot and provide token
 
 ## Development instructions
 
-When new feature added or bug fixed, bump it in `VERSION` file
-`CHANGELOG.md` contains only new features
+### Contribution 
+Make a new branch from dev branch
+When new feature added or bug fixed, bump it in `VERSION` file.  
+`CHANGELOG.md` contains only new features.  
 
-### Gitflow
-1. New branch from dev  
-1. Merge Requests -> dev  
-1. dev -> release  
-1. stable release -> master  
+
 

@@ -23,6 +23,27 @@ const (
 	TraceLevel
 )
 
+func (l Level) String() string {
+	switch l {
+	case PanicLevel:
+		return "PANIC"
+	case FatalLevel:
+		return "FATAL"
+	case ErrorLevel:
+		return "ERROR"
+	case WarnLevel:
+		return "WARNING"
+	case InfoLevel:
+		return "INFO"
+	case DebugLevel:
+		return "DEBUG"
+	case TraceLevel:
+		return "TRACE"
+	default:
+		return ""
+	}
+}
+
 type Logger interface {
 	Info(args ...interface{})
 	Warn(args ...interface{})
@@ -34,7 +55,7 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	Log(logrus.Level, string)
 
-	AddHook(hooks []Hook)
+	AddHook(hook Hook, lvls ...Level)
 
 	WithPrefix(k string, v interface{}) Logger
 }
@@ -115,9 +136,20 @@ func (l *logrusLogger) WithPrefix(k string, v interface{}) Logger {
 	}
 }
 
-func (l logrusLogger) AddHook(hooks []Hook) {
-	// TODO wrap hooks to logrus.Hook with level Error and Warning
-	//	l.log.Logger.AddHook()
+func (l logrusLogger) AddHook(hk Hook, lvls ...Level) {
+	h := &hook{
+		Receiver: hk,
+	}
+
+	if lvls == nil {
+		h.lvls = []logrus.Level{logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel}
+	}
+
+	for _, lvl := range lvls {
+		h.lvls = append(h.lvls, logrus.Level(lvl))
+	}
+
+	l.log.Logger.AddHook(h)
 }
 
 func New(writer io.Writer, level Level) *logrusLogger {
@@ -156,9 +188,30 @@ type HookData struct {
 	Level   Level
 	Caller  *runtime.Frame
 	Message string
-	err     string
+	Fields  map[string]interface{}
 }
 
 type Hook interface {
 	Fire(*HookData) error
+}
+
+type hook struct {
+	Receiver Hook
+	lvls     []logrus.Level
+}
+
+func (h *hook) Fire(e *logrus.Entry) error {
+	hd := &HookData{
+		Time:    e.Time,
+		Level:   Level(e.Level),
+		Caller:  e.Caller,
+		Message: e.Message,
+		Fields:  e.Data,
+	}
+
+	return h.Receiver.Fire(hd)
+}
+
+func (h *hook) Levels() []logrus.Level {
+	return h.lvls
 }

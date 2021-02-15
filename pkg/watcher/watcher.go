@@ -38,6 +38,10 @@ func (e *eventHead) GetEventName() string {
 }
 
 func NewEvent(moduleType ModuleType, name string, dataType interface{}) *eventHead {
+	if name == "" {
+		panic("empty name")
+	}
+
 	var pT reflect.Type
 	if dataType != nil {
 		dt := reflect.TypeOf(dataType)

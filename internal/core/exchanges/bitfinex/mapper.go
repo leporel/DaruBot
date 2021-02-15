@@ -15,7 +15,7 @@ import (
 func (b *Bitfinex) convertOrder(data interface{}) *models.Order {
 	o, ok := bitfinexOrderToModel(data)
 	if !ok {
-		b.lg.Error(errors.Errorf("cant cast order to model %#v", data))
+		b.log.Error(errors.Errorf("cant cast order to model %#v", data))
 		return nil
 	}
 	return o
@@ -24,7 +24,7 @@ func (b *Bitfinex) convertOrder(data interface{}) *models.Order {
 func (b *Bitfinex) convertPosition(data interface{}) *models.Position {
 	o, ok := bitfinexPositionToModel(data)
 	if !ok {
-		b.lg.Errorf("cant cast position to model %#v", data)
+		b.log.Errorf("cant cast position to model %#v", data)
 		return nil
 	}
 	return o
@@ -33,7 +33,7 @@ func (b *Bitfinex) convertPosition(data interface{}) *models.Position {
 func (b *Bitfinex) convertTicker(data interface{}) *models.Ticker {
 	o, ok := bitfinexTickerToModel(data)
 	if !ok {
-		b.lg.Errorf("cant cast ticker to model %#v", data)
+		b.log.Errorf("cant cast ticker to model %#v", data)
 		return nil
 	}
 	return o
@@ -42,7 +42,7 @@ func (b *Bitfinex) convertTicker(data interface{}) *models.Ticker {
 func (b *Bitfinex) convertCandle(data *candle.Candle) *models.Candle {
 	o, ok := bitfinexCandleToModel(data)
 	if !ok {
-		b.lg.Errorf("cant cast candle to model %#v", data)
+		b.log.Errorf("cant cast candle to model %#v", data)
 		return nil
 	}
 	return o

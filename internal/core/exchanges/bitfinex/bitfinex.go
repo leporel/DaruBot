@@ -5,6 +5,7 @@ import (
 	exchanges2 "DaruBot/internal/core/exchanges"
 	logger2 "DaruBot/internal/logger"
 	"DaruBot/internal/models"
+	"DaruBot/internal/models/exchanges"
 	"DaruBot/internal/models/exchanges/bitfinex"
 	"DaruBot/pkg/errors"
 	"DaruBot/pkg/logger"
@@ -36,24 +37,24 @@ import (
 
 var (
 	supportEventsBitfinex = watcher.EventsMap{
-		exchanges2.EventError,
-		exchanges2.EventRequestSuccess,
-		exchanges2.EventRequestFail,
+		models.EventError,
+		models.EventRequestSuccess,
+		models.EventRequestFail,
 
-		exchanges2.EventTickerState,
-		exchanges2.EventCandleState,
+		models.EventTickerState,
+		models.EventCandleState,
 
-		exchanges2.EventOrderNew,
-		exchanges2.EventOrderFilled,
-		exchanges2.EventOrderCancel,
-		exchanges2.EventOrderPartiallyFilled,
-		exchanges2.EventOrderUpdate,
+		models.EventOrderNew,
+		models.EventOrderFilled,
+		models.EventOrderCancel,
+		models.EventOrderPartiallyFilled,
+		models.EventOrderUpdate,
 
-		exchanges2.EventPositionNew,
-		exchanges2.EventPositionClosed,
-		exchanges2.EventPositionUpdate,
+		models.EventPositionNew,
+		models.EventPositionClosed,
+		models.EventPositionUpdate,
 
-		exchanges2.EventWalletUpdate,
+		models.EventWalletUpdate,
 	}
 )
 
@@ -63,7 +64,7 @@ type Bitfinex struct {
 	ws   *websocket.Client
 	rest *rest.Client
 
-	lg  logger.Logger
+	log logger.Logger
 	cfg config.Configurations
 
 	ready          bool
@@ -113,13 +114,13 @@ func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher
 		return nil, exchanges2.ErrNotOperate
 	}
 
-	wManager.RegisterEvents(string(models.ExchangeTypeBitfinex), supportEventsBitfinex)
+	wManager.RegisterEvents(string(exchanges.ExchangeTypeBitfinex), supportEventsBitfinex)
 
 	return &Bitfinex{
 		ctx:             ctx,
 		ws:              WebSocket,
 		rest:            REST,
-		lg:              lg.WithPrefix("exchange", "Bitfinex"),
+		log:             lg.WithPrefix("exchange", "Bitfinex"),
 		walletsExchange: models.Wallets{WalletType: models.WalletTypeExchange},
 		walletsMargin:   models.Wallets{WalletType: models.WalletTypeMargin},
 		balance:         models.BalanceUSD{},
@@ -140,13 +141,13 @@ func (b *Bitfinex) Connect() error {
 
 	err := b.ws.Connect()
 	if err != nil {
-		b.lg.Error("could not connect", err)
+		b.log.Error("could not connect", err)
 		return err
 	}
 
 	b.readyChan = make(chan interface{}, 1)
 
-	errorPipe, err := b.watchers.New("bf_api_errors", exchanges2.EventError)
+	errorPipe, err := b.watchers.New("bf_api_errors", models.EventError)
 	if err != nil {
 		return err
 	}
@@ -177,17 +178,17 @@ func (b *Bitfinex) Ready() <-chan interface{} {
 }
 
 func (b *Bitfinex) SupportEvents() watcher.EventsMap {
-	return b.watchers.SupportEvents(string(models.ExchangeTypeBitfinex))
+	return b.watchers.SupportEvents(string(exchanges.ExchangeTypeBitfinex))
 }
 
 func (b *Bitfinex) listen() {
 	defer func() {
 		b.ready = false
 		b.ws.Close()
-		b.lg.Info("websocket disconnected")
+		b.log.Info("websocket disconnected")
 	}()
 
-	defer tools.Recover(b.lg)
+	defer tools.Recover(b.log)
 
 	events := b.ws.Listen()
 
@@ -196,7 +197,7 @@ func (b *Bitfinex) listen() {
 		case obj := <-events:
 			switch data := obj.(type) {
 			case *websocket.AuthEvent:
-				b.lg.Info("websocket authorization complete")
+				b.log.Info("websocket authorization complete")
 
 				b.ready = true
 				close(b.readyChan)
@@ -205,30 +206,30 @@ func (b *Bitfinex) listen() {
 
 			case *websocket.InfoEvent:
 				// this event confirms connection to the bfx websocket
-				b.lg.Debugf("INFO EVENT: %#v", data)
+				b.log.Debugf("INFO EVENT: %#v", data)
 
 				if data.Platform.Status == 0 {
-					b.lg.Error(exchanges2.ErrNotOperate)
-					b.emmit(exchanges2.EventError, exchanges2.ErrNotOperate)
+					b.log.Error(exchanges2.ErrNotOperate)
+					b.emmit(models.EventError, exchanges2.ErrNotOperate)
 					return
 				}
 
 			case websocket.PlatformInfo:
-				b.lg.Debugf("PLATFORM INFO: %#v", data)
+				b.log.Debugf("PLATFORM INFO: %#v", data)
 				if data.Status == 0 {
-					b.lg.Error(exchanges2.ErrNotOperate)
-					b.emmit(exchanges2.EventError, exchanges2.ErrNotOperate)
+					b.log.Error(exchanges2.ErrNotOperate)
+					b.emmit(models.EventError, exchanges2.ErrNotOperate)
 					return
 				}
 
 			case *websocket.SubscribeEvent:
-				b.lg.Debugf("SUBSCRIBE EVENT %#v", data)
+				b.log.Debugf("SUBSCRIBE EVENT %#v", data)
 
 			case *websocket.UnsubscribeEvent:
-				b.lg.Debugf("UNSUBSCRIBE EVENT %#v", data)
+				b.log.Debugf("UNSUBSCRIBE EVENT %#v", data)
 
 			case *wallet.Snapshot:
-				b.lg.Debugf("WALLET SNAPSHOT %#v", data)
+				b.log.Debugf("WALLET SNAPSHOT %#v", data)
 
 				b.walletsMargin.Clear()
 				b.walletsExchange.Clear()
@@ -239,16 +240,16 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *wallet.Update:
-				b.lg.Debugf("WALLET UPDATE %#v", data)
+				b.log.Debugf("WALLET UPDATE %#v", data)
 
 				w := wallet.Wallet(*data)
 				wl := b.updateWallet(&w)
-				b.emmit(exchanges2.EventWalletUpdate, *wl)
+				b.emmit(models.EventWalletUpdate, *wl)
 
 				b.lastUpdate = time.Now()
 
 			case *balanceinfo.Update:
-				b.lg.Debugf("BALANCE INFO %#v", data)
+				b.log.Debugf("BALANCE INFO %#v", data)
 
 				b.balance.Total = data.TotalAUM
 				b.balance.Total = data.NetAUM
@@ -256,7 +257,7 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *position.Snapshot:
-				b.lg.Debugf("POSITION SNAPSHOT %#v", data)
+				b.log.Debugf("POSITION SNAPSHOT %#v", data)
 
 				for _, p := range data.Snapshot {
 					b.processPosition(p)
@@ -264,28 +265,28 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *position.Update:
-				b.lg.Debugf("POSITION UPDATE %#v", data)
+				b.log.Debugf("POSITION UPDATE %#v", data)
 
 				b.processPosition((*position.Position)(data))
 				b.lastUpdate = time.Now()
 
 			case *position.New:
-				b.lg.Debugf("POSITION NEW %#v", data)
+				b.log.Debugf("POSITION NEW %#v", data)
 				p := (*position.Position)(data)
 
 				b.positions.Add(p)
 				b.lastUpdate = time.Now()
 
-				b.emmit(exchanges2.EventPositionNew, *b.convertPosition(data))
+				b.emmit(models.EventPositionNew, *b.convertPosition(data))
 
 			case *position.Cancel:
-				b.lg.Debugf("POSITION CANCEL %#v", data)
+				b.log.Debugf("POSITION CANCEL %#v", data)
 
 				b.processPosition((*position.Position)(data))
 				b.lastUpdate = time.Now()
 
 			case *order.Snapshot:
-				b.lg.Debugf("ORDER SNAPSHOT %#v", data)
+				b.log.Debugf("ORDER SNAPSHOT %#v", data)
 
 				for _, o := range data.Snapshot {
 					b.processOrder(o)
@@ -294,71 +295,71 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *order.Update:
-				b.lg.Debugf("ORDER UPDATE %#v", data)
+				b.log.Debugf("ORDER UPDATE %#v", data)
 
 				b.processOrder((*order.Order)(data))
 
 				b.lastUpdate = time.Now()
 
 			case *order.Cancel:
-				b.lg.Debugf("ORDER CANCEL %#v", data)
+				b.log.Debugf("ORDER CANCEL %#v", data)
 
 				b.processOrder((*order.Order)(data))
 
 				b.lastUpdate = time.Now()
 
 			case *order.New:
-				b.lg.Debugf("ORDER NEW %#v", data)
+				b.log.Debugf("ORDER NEW %#v", data)
 
 				o := (*order.Order)(data)
 				b.orders.Add(o)
-				b.emmit(exchanges2.EventOrderNew, *b.convertOrder(o))
+				b.emmit(models.EventOrderNew, *b.convertOrder(o))
 
 				b.lastUpdate = time.Now()
 
 			case *tradeexecution.TradeExecution:
-				b.lg.Debugf("TRADE EXECUTION:  %#v", data)
+				b.log.Debugf("TRADE EXECUTION:  %#v", data)
 
 			case *tradeexecutionupdate.TradeExecutionUpdate:
-				b.lg.Debugf("TRADE EXECUTION UPDATE:  %#v", data)
+				b.log.Debugf("TRADE EXECUTION UPDATE:  %#v", data)
 
 			case *trade.Trade:
-				b.lg.Debugf("TRADE NEW:  %#v", data)
+				b.log.Debugf("TRADE NEW:  %#v", data)
 
 			case *trade.Snapshot:
-				b.lg.Debugf("TRADE SNAPSHOT:  %#v", data)
+				b.log.Debugf("TRADE SNAPSHOT:  %#v", data)
 
 			case *ticker.Snapshot:
-				b.lg.Debugf("TICKER SNAPSHOT:  %#v", data)
+				b.log.Debugf("TICKER SNAPSHOT:  %#v", data)
 
 				for _, t := range data.Snapshot {
-					b.emmit(exchanges2.EventTickerState, *b.convertTicker(t))
+					b.emmit(models.EventTickerState, *b.convertTicker(t))
 				}
 
 			case *ticker.Ticker:
-				b.lg.Debugf("TICKER:  %#v", data)
+				b.log.Debugf("TICKER:  %#v", data)
 
-				b.emmit(exchanges2.EventTickerState, *b.convertTicker(data))
+				b.emmit(models.EventTickerState, *b.convertTicker(data))
 
 			case *ticker.Update:
-				b.lg.Debugf("TICKER UPDATE:  %#v", data)
+				b.log.Debugf("TICKER UPDATE:  %#v", data)
 
-				b.emmit(exchanges2.EventTickerState, *b.convertTicker(data))
+				b.emmit(models.EventTickerState, *b.convertTicker(data))
 
 			case *candle.Snapshot:
-				b.lg.Debugf("CANDLE SNAPSHOT:  %#v", data)
+				b.log.Debugf("CANDLE SNAPSHOT:  %#v", data)
 
 				for _, c := range data.Snapshot {
-					b.emmit(exchanges2.EventTickerState, *b.convertCandle(c))
+					b.emmit(models.EventTickerState, *b.convertCandle(c))
 				}
 
 			case *candle.Candle:
-				b.lg.Debugf("CANDLE:  %#v", data)
+				b.log.Debugf("CANDLE:  %#v", data)
 
-				b.emmit(exchanges2.EventTickerState, *b.convertCandle(data))
+				b.emmit(models.EventTickerState, *b.convertCandle(data))
 
 			case *notification.Notification:
-				b.lg.Debugf("NOTIFICATION NEW:  %#v", data)
+				b.log.Debugf("NOTIFICATION NEW:  %#v", data)
 
 				ord := &order.Order{}
 
@@ -391,30 +392,30 @@ func (b *Bitfinex) listen() {
 
 				switch data.Status {
 				case "ERROR", "FAILURE":
-					b.lg.Warnf("REQUEST ERROR:  %#v", data)
-					b.emmit(exchanges2.EventRequestFail, exchanges2.RequestResult{Msg: data.Text, Err: exchanges2.ErrRequestError, Meta: meta})
+					b.log.Warnf("REQUEST ERROR:  %#v", data)
+					b.emmit(models.EventRequestFail, models.RequestResult{Msg: data.Text, Err: exchanges2.ErrRequestError, Meta: meta})
 				case "SUCCESS":
-					b.emmit(exchanges2.EventRequestSuccess, exchanges2.RequestResult{Msg: data.Text, Meta: meta})
+					b.emmit(models.EventRequestSuccess, models.RequestResult{Msg: data.Text, Meta: meta})
 				default:
-					b.lg.Warnf("UNKNOWN NOTIFICATION:  %#v", data)
+					b.log.Warnf("UNKNOWN NOTIFICATION:  %#v", data)
 				}
 
 			case error:
 				err := errors.WrapMessage(exchanges2.ErrWebsocketError, fmt.Sprintf("channel closed: %s", data.Error()))
-				b.lg.Error(err)
-				b.emmit(exchanges2.EventError, err)
+				b.log.Error(err)
+				b.emmit(models.EventError, err)
 				return
 
 			default:
-				b.lg.Debugf("MSG RECV: %#v", data)
+				b.log.Debugf("MSG RECV: %#v", data)
 			}
 
 		case <-b.disconnectChan:
-			b.lg.Debugf("disconnect from web socket")
+			b.log.Debugf("disconnect from web socket")
 			return
 
 		case <-b.ctx.Done():
-			b.lg.Debugf("gracefully stop received")
+			b.log.Debugf("gracefully stop received")
 			return
 		}
 	}
@@ -423,37 +424,37 @@ func (b *Bitfinex) listen() {
 func (b *Bitfinex) processOrder(o *order.Order) {
 	if strings.Contains(o.Status, "EXECUTED") {
 		b.orders.Delete(o.ID)
-		b.emmit(exchanges2.EventOrderFilled, *b.convertOrder(o))
+		b.emmit(models.EventOrderFilled, *b.convertOrder(o))
 	}
 	if strings.Contains(o.Status, "CANCELED") {
 		b.orders.Delete(o.ID)
-		b.emmit(exchanges2.EventOrderCancel, *b.convertOrder(o))
+		b.emmit(models.EventOrderCancel, *b.convertOrder(o))
 	}
 	if strings.Contains(o.Status, "PARTIALLY FILLED") {
 		b.orders.Add(o)
-		b.emmit(exchanges2.EventOrderPartiallyFilled, *b.convertOrder(o))
+		b.emmit(models.EventOrderPartiallyFilled, *b.convertOrder(o))
 	}
 	if strings.Contains(o.Status, "ACTIVE") {
 		b.orders.Add(o)
-		b.emmit(exchanges2.EventOrderUpdate, *b.convertOrder(o))
+		b.emmit(models.EventOrderUpdate, *b.convertOrder(o))
 	}
 }
 
 func (b *Bitfinex) processPosition(p *position.Position) {
 	if p.Status != "CLOSED" {
 		b.positions.Add(p)
-		b.emmit(exchanges2.EventPositionUpdate, *b.convertPosition(p))
+		b.emmit(models.EventPositionUpdate, *b.convertPosition(p))
 	}
 	if p.Status == "CLOSED" {
 		b.positions.Delete(p.Id)
-		b.emmit(exchanges2.EventPositionClosed, *b.convertPosition(p))
+		b.emmit(models.EventPositionClosed, *b.convertPosition(p))
 	}
 }
 
 func (b *Bitfinex) emmit(eventHead watcher.EventHead, data interface{}) {
-	err := b.watchers.Emmit(watcher.BuildEvent(eventHead, string(models.ExchangeTypeBitfinex), data))
+	err := b.watchers.Emmit(watcher.BuildEvent(eventHead, string(exchanges.ExchangeTypeBitfinex), data))
 	if err != nil {
-		b.lg.Error(err)
+		b.log.Error(err)
 	}
 }
 
@@ -691,13 +692,13 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		AffiliateCode: b.cfg.Exchanges.BitFinex.Affiliate,
 	}
 
-	b.lg.Debugf("Submitting order: %#v", req)
+	b.log.Debugf("Submitting order: %#v", req)
 	err = b.ws.SubmitOrder(b.ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", orderClientID), exchanges2.EventOrderFilled, exchanges2.EventOrderNew, exchanges2.EventRequestFail)
+	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", orderClientID), models.EventOrderFilled, models.EventOrderNew, models.EventRequestFail)
 	if err != nil {
 		return nil, err
 	}
@@ -710,12 +711,12 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Is(exchanges2.EventRequestFail):
-				rr := evt.Payload.(exchanges2.RequestResult)
+			case evt.Is(models.EventRequestFail):
+				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == o.InternalID {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Is(exchanges2.EventOrderFilled), evt.Is(exchanges2.EventOrderNew):
+			case evt.Is(models.EventOrderFilled), evt.Is(models.EventOrderNew):
 				or := evt.Payload.(models.Order)
 				if or.InternalID == o.InternalID {
 					return &or, nil
@@ -751,13 +752,13 @@ func (b *Bitfinex) CancelOrder(o *models.Order) error {
 		CIDDate: date,
 	}
 
-	b.lg.Debugf("Canceling order: %#v", req)
+	b.log.Debugf("Canceling order: %#v", req)
 	err = b.ws.SubmitCancel(b.ctx, &req)
 	if err != nil {
 		return err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.ID, req.CID), exchanges2.EventOrderCancel, exchanges2.EventRequestFail)
+	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.ID, req.CID), models.EventOrderCancel, models.EventRequestFail)
 	if err != nil {
 		return err
 	}
@@ -770,12 +771,12 @@ func (b *Bitfinex) CancelOrder(o *models.Order) error {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Is(exchanges2.EventRequestFail):
-				rr := evt.Payload.(exchanges2.RequestResult)
+			case evt.Is(models.EventRequestFail):
+				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == o.ID || rr.Meta["order_id"] == o.InternalID {
 					return errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Is(exchanges2.EventOrderCancel):
+			case evt.Is(models.EventOrderCancel):
 				or := evt.Payload.(models.Order)
 				if or.ID == o.ID || or.InternalID == o.InternalID {
 					return nil
@@ -819,13 +820,13 @@ func (b *Bitfinex) UpdateOrder(orderID string, price float64, priceStop float64,
 		req.Price = priceStop
 	}
 
-	b.lg.Debugf("Updating order: %#v", req)
+	b.log.Debugf("Updating order: %#v", req)
 	err = b.ws.SubmitUpdateOrder(b.ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", id), exchanges2.EventOrderUpdate)
+	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", id), models.EventOrderUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -838,7 +839,7 @@ func (b *Bitfinex) UpdateOrder(orderID string, price float64, priceStop float64,
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Is(exchanges2.EventOrderUpdate):
+			case evt.Is(models.EventOrderUpdate):
 				ord := evt.Payload.(models.Order)
 				if ord.ID == orderID {
 					return &ord, nil
@@ -874,13 +875,13 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		Close:         true,
 	}
 
-	b.lg.Debugf("Submitting order to close position: %#v", req)
+	b.log.Debugf("Submitting order to close position: %#v", req)
 	err := b.ws.SubmitOrder(b.ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	positionPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.CID), exchanges2.EventPositionClosed, exchanges2.EventRequestFail)
+	positionPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.CID), models.EventPositionClosed, models.EventRequestFail)
 	if err != nil {
 		return nil, err
 	}
@@ -893,12 +894,12 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		select {
 		case evt := <-positionPipe.Listen():
 			switch {
-			case evt.Is(exchanges2.EventRequestFail):
-				rr := evt.Payload.(exchanges2.RequestResult)
+			case evt.Is(models.EventRequestFail):
+				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == fmt.Sprint(req.CID) {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
 				}
-			case evt.Is(exchanges2.EventPositionClosed):
+			case evt.Is(models.EventPositionClosed):
 				pos := evt.Payload.(models.Position)
 				if pos.ID == p.ID {
 					return &prevStatePos, nil

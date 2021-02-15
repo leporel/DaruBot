@@ -10,22 +10,22 @@ type S struct {
 	bar string
 }
 
+func BenchmarkType(b *testing.B) {
+	tp := reflect.TypeOf(&S{}).Elem()
+	for i := 0; i < b.N; i++ {
+		tp2 := reflect.TypeOf(&S{}).Elem()
+		if tp == tp2 {
+			// cool
+		}
+	}
+}
+
 func BenchmarkTypeString(b *testing.B) {
 	tp := reflect.TypeOf(&S{}).Elem()
 	str := tp.String()
 	for i := 0; i < b.N; i++ {
 		tp2 := reflect.TypeOf(&S{}).Elem()
 		if str == tp2.String() {
-			// cool
-		}
-	}
-}
-
-func BenchmarkType(b *testing.B) {
-	tp := reflect.TypeOf(&S{}).Elem()
-	for i := 0; i < b.N; i++ {
-		tp2 := reflect.TypeOf(&S{}).Elem()
-		if tp == tp2 {
 			// cool
 		}
 	}
