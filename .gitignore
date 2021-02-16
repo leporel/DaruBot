@@ -1,2 +1,4 @@
 /.idea/
 /.vs/
+assets/certs/cert.pem
+assets/certs/key.pem

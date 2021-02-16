@@ -106,8 +106,8 @@ func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher
 	log.SetBackend(logger2.ConvertToGoLogging(lg.WithPrefix("exchange", log.Module), logging.INFO))
 	p.Logger = log
 
-	WebSocket := websocket.NewWithParams(p).Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
-	REST := rest.NewClient().Credentials(c.Exchanges.BitFinex.ApiKey, c.Exchanges.BitFinex.ApiSec)
+	WebSocket := websocket.NewWithParams(p).Credentials(c.Exchanges.Bitfinex.ApiKey, c.Exchanges.Bitfinex.ApiSec)
+	REST := rest.NewClient().Credentials(c.Exchanges.Bitfinex.ApiKey, c.Exchanges.Bitfinex.ApiSec)
 
 	status, err := REST.Platform.Status()
 	if err != nil || !status {
@@ -689,7 +689,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		Amount:        Amount,
 		Price:         Price,
 		PriceAuxLimit: PriceAuxLimit,
-		AffiliateCode: b.cfg.Exchanges.BitFinex.Affiliate,
+		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate,
 	}
 
 	b.log.Debugf("Submitting order: %#v", req)
@@ -871,7 +871,7 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		Symbol:        Pair,
 		Type:          "MARKET",
 		Amount:        -p.Amount,
-		AffiliateCode: b.cfg.Exchanges.BitFinex.Affiliate,
+		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate,
 		Close:         true,
 	}
 

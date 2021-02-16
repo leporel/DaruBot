@@ -12,55 +12,51 @@ type Nexus interface {
 
 	Register(Module) error
 	Send(Message) error
-	SetListener(CommandListener)
 }
 
 type Module interface {
-	Init(CommandListener) error
+	Init(CommandHandlerFunc) error
 	Name() models.NexusModuleName
 	ListenForType(models.MessageType) bool
 	Send(Message) error
+	Stop() error
 }
 
 type Message interface {
 	Type() models.MessageType
 }
 
-type CommandListener func(*models.Command) (*models.Response, error)
+type CommandHandlerFunc func(*models.Command) (*models.Response, error)
 
 type nexus struct {
-	modules  []Module
-	listener CommandListener
-	log      logger.Logger
-	cmdLock  *sync.Mutex
+	modules []Module
+	handler CommandHandlerFunc
+	log     logger.Logger
+	cmdLock *sync.Mutex
 }
 
-func NewNexus(lg logger.Logger) Nexus {
+func NewNexus(lg logger.Logger, cl CommandHandlerFunc) Nexus {
 	n := &nexus{
-		modules:  nil,
-		listener: nil,
-		log:      lg,
-		cmdLock:  &sync.Mutex{},
+		modules: nil,
+		handler: cl,
+		log:     lg,
+		cmdLock: &sync.Mutex{},
 	}
 
 	return n
 }
 
-func (n *nexus) ReceiveCommand(cmd *models.Command) (*models.Response, error) {
-	if n.listener != nil {
+func (n *nexus) receiveCommand(cmd *models.Command) (*models.Response, error) {
+	if n.handler != nil {
 		n.cmdLock.Lock()
 		defer n.cmdLock.Unlock()
-		return n.listener(cmd)
+		return n.handler(cmd)
 	}
 	return nil, fmt.Errorf("commands are not listening")
 }
 
-func (n *nexus) SetListener(cl CommandListener) {
-	n.listener = cl
-}
-
 func (n *nexus) Register(module Module) error {
-	if err := module.Init(n.ReceiveCommand); err != nil {
+	if err := module.Init(n.receiveCommand); err != nil {
 		return err
 	}
 

@@ -10,6 +10,7 @@ type Configurations struct {
 	Logger     Logger
 	Exchanges  Exchanges
 	Strategies Strategies
+	Nexus      Nexus
 }
 
 var (
@@ -19,9 +20,9 @@ var (
 			FileOutput: false,
 		},
 		Exchanges: Exchanges{
-			BitFinex: BitFinex{
-				ApiKey:    os.Getenv("API_KEY"),
-				ApiSec:    os.Getenv("API_SEC"),
+			Bitfinex: Bitfinex{
+				ApiKey:    os.Getenv("BITFINEX_API_KEY"),
+				ApiSec:    os.Getenv("BITFINEX_API_SEC"),
 				Strategy:  "DaruStonks",
 				Affiliate: "jXAX6tEPA",
 			},
@@ -31,6 +32,26 @@ var (
 				Pair:   "tTESTBTC:TESTUSD",
 				Margin: false,
 			}},
+		Nexus: Nexus{
+			Modules: Modules{
+				Telegram{
+					Enabled:     false,
+					WebhookMode: false,
+					CustomCert:  false,
+					APIKey:      os.Getenv("TG_API_KEY"),
+					Group:       os.Getenv("TG_GROUP_ID"),
+					User:        os.Getenv("TG_USER_ID"),
+				},
+			},
+			TLSCert: TLSCert{
+				Url:      os.Getenv("TLS_HOST"),
+				KeyFile:  "",
+				CertFile: "",
+			},
+			Proxy: Proxy{
+				Addr: os.Getenv("PROXY_ADDR"),
+			},
+		},
 	}
 )
 
@@ -43,10 +64,10 @@ type Logger struct {
 }
 
 type Exchanges struct {
-	BitFinex BitFinex
+	Bitfinex Bitfinex
 }
 
-type BitFinex struct {
+type Bitfinex struct {
 	ApiKey    string
 	ApiSec    string
 	Strategy  string
@@ -60,4 +81,33 @@ type DaruStonks struct {
 
 type Strategies struct {
 	DaruStonks DaruStonks
+}
+
+type Nexus struct {
+	Modules Modules
+	TLSCert TLSCert
+	Proxy   Proxy
+}
+
+type Modules struct {
+	Telegram Telegram
+}
+
+type Telegram struct {
+	Enabled     bool
+	WebhookMode bool
+	CustomCert  bool
+	APIKey      string
+	Group       string
+	User        string
+}
+
+type TLSCert struct {
+	Url      string
+	KeyFile  string
+	CertFile string
+}
+
+type Proxy struct {
+	Addr string
 }
