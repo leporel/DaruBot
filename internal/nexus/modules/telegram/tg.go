@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	NexusModuleTelegram nexus.NexusModuleName = "Telegram"
+	NexusModuleTelegram nexus.ModuleName = "Telegram"
 )
 
 type TgBot struct {
@@ -103,3 +103,23 @@ func NewTelegram(cfg config.Configurations) (*TgBot, error) {
 		bot: b,
 	}, nil
 }
+
+/*func (n *nexus) Fire(hd *logger.HookData) error {
+
+	msg := &Notification{
+		Msg: fmt.Sprintf("[%s] [%s]\n%s",
+			hd.Level, hd.Time.Format("01.02 15:04:05"), hd.Message),
+		Raw: hd,
+	}
+
+	switch {
+	case hd.Level > logger.WarnLevel:
+		msg.Kind = NotifyKindLog
+	case hd.Level == logger.WarnLevel:
+		msg.Kind = NotifyKindWarning
+	default:
+		msg.Kind = NotifyKindError
+	}
+
+	return n.Send(msg)
+}*/

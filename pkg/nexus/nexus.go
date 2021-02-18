@@ -15,55 +15,69 @@ type Nexus interface {
 	Send(Message) error
 }
 
+type ModuleName string
+
 type Module interface {
-	Init(CommandHandlerFunc) error
-	Name() NexusModuleName
-	ListenForType(MessageType) bool
+	logger.Hook
 	Send(Message) error
+
+	Init(CommandHandlerFunc) error
 	Stop() error
+
+	Name() ModuleName
+	ListenForType(PayloadType) bool
 }
+
+type PayloadType string
 
 type Message interface {
-	Type() MessageType
+	GetType() PayloadType
+	GetPayload() interface{}
 }
 
-type CommandHandlerFunc func(context.Context, *Command) (*Response, error)
+type Command interface {
+	GetType() PayloadType
+	GetPayload() interface{}
+}
+
+type Response interface {
+	GetPayload() interface{}
+}
+
+type CommandHandlerFunc func(context.Context, Command) (Response, error)
 
 type nexus struct {
 	modules      []Module
 	handler      CommandHandlerFunc
 	singleCaller singleflight.Group
-	log          logger.Logger
 }
 
-func NewNexus(cl CommandHandlerFunc, lg logger.Logger) Nexus {
+func NewNexus(cl CommandHandlerFunc) Nexus {
 	n := &nexus{
 		modules:      nil,
 		handler:      cl,
 		singleCaller: singleflight.Group{},
-		log:          lg,
 	}
 
 	return n
 }
 
-func (n *nexus) receiveCommand(ctx context.Context, cmd *Command) (*Response, error) {
+func (n *nexus) receiveCommand(ctx context.Context, cmd Command) (Response, error) {
 	if n.handler != nil {
-
 		req := func() (interface{}, error) {
-			defer tools.Recover(n.log)
+			defer tools.Recover(nil)
 
 			return n.handler(ctx, cmd)
 		}
 
-		result, err, _ := n.singleCaller.Do(string(cmd.Type), req)
+		result, err, _ := n.singleCaller.Do(string(cmd.GetType()), req)
 		if err != nil {
 			return nil, err
 		}
 		if result == nil {
 			return nil, fmt.Errorf("result is nil")
 		}
-		rs, ok := result.(*Response)
+		rs, ok := result.(Response)
 		if !ok {
 			return nil, fmt.Errorf("responce has wrong type")
 		}
@@ -71,6 +85,10 @@ func (n *nexus) receiveCommand(ctx context.Context, cmd *Command) (*Response, er
 		return rs, nil
 	}
 	return nil, fmt.Errorf("commands are not listening")
+}
+
+func (n *nexus) Fire(hd *logger.HookData) error {
+	return n.Fire(hd)
 }
 
 func (n *nexus) Register(module Module) error {
@@ -85,7 +103,7 @@ func (n *nexus) Register(module Module) error {
 
 func (n *nexus) Send(msg Message) error {
 	for _, module := range n.modules {
-		if module.ListenForType(msg.Type()) {
+		if module.ListenForType(msg.GetType()) {
 			return module.Send(msg)
 		}
 	}
@@ -93,27 +111,7 @@ func (n *nexus) Send(msg Message) error {
 	return nil
 }
 
-func (n *nexus) Fire(hd *logger.HookData) error {
-
-	msg := &Notification{
-		Msg: fmt.Sprintf("[%s] [%s]\n%s",
-			hd.Level, hd.Time.Format("01.02 15:04:05"), hd.Message),
-		Raw: hd,
-	}
-
-	switch {
-	case hd.Level > logger.WarnLevel:
-		msg.Msg = NotifyKindLog
-	case hd.Level == logger.WarnLevel:
-		msg.Msg = NotifyKindWarning
-	default:
-		msg.Msg = NotifyKindError
-	}
-
-	return n.Send(msg)
-}
-
-func (n *nexus) getModule(name NexusModuleName) Module {
+func (n *nexus) getModule(name ModuleName) Module {
 	for _, module := range n.modules {
 		if module.Name() == name {
 			return module
