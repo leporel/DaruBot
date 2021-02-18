@@ -1,8 +1,10 @@
 package watcher
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type S struct {
@@ -33,3 +35,44 @@ func BenchmarkTypeString(b *testing.B) {
 
 //BenchmarkType-16          	16899075	        73.1 ns/op
 //BenchmarkTypeString-16    	20309344	        60.0 ns/op
+
+func TestHandler(t *testing.T) {
+	m := NewWatcherManager()
+
+	wh, err := m.New("test watcher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Remove("test watcher")
+
+	wait := make(chan bool, 1)
+	handler := func(evt *event) {
+		fmt.Printf("%#v\n", evt)
+		wait <- true
+	}
+
+	err = wh.SetHandler(handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = m.Emmit(&event{
+		EventHead:  NewEvent("module type", "test event", nil),
+		ModuleName: "module name",
+		Payload:    "meh",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tk := time.Tick(1 * time.Second)
+
+	for {
+		select {
+		case <-wait:
+			return
+		case <-tk:
+			t.Fatal("event not handled")
+		}
+	}
+}

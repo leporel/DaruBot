@@ -1,4 +1,4 @@
-package models
+package nexus
 
 type NexusModuleName string
 
@@ -13,7 +13,6 @@ type CommandType uint8
 
 type Command struct {
 	Type    CommandType
-	From    NexusModuleName
 	Payload []byte
 }
 

@@ -2,8 +2,8 @@ package telegram
 
 import (
 	"DaruBot/internal/config"
-	"DaruBot/internal/models"
-	"DaruBot/internal/nexus"
+	"DaruBot/pkg/nexus"
+	"DaruBot/pkg/proxy"
 	"DaruBot/pkg/tools"
 	"fmt"
 	tb "gopkg.in/tucnak/telebot.v2"
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	NexusModuleTelegram models.NexusModuleName = "Telegram"
+	NexusModuleTelegram nexus.NexusModuleName = "Telegram"
 )
 
 type TgBot struct {
@@ -60,7 +60,7 @@ func NewTelegram(cfg config.Configurations) (*TgBot, error) {
 		}
 	}
 
-	httpCli, err := nexus.NewProxyClient(cfg.Nexus.Proxy.Addr)
+	httpCli, err := proxy.NewProxyClient(cfg.Nexus.Proxy.Addr)
 	if err != nil {
 		return nil, err
 	}

@@ -114,7 +114,10 @@ func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher
 		return nil, exchanges2.ErrNotOperate
 	}
 
-	wManager.RegisterEvents(string(exchanges.ExchangeTypeBitfinex), supportEventsBitfinex)
+	err = wManager.RegisterEvents(exchanges.ExchangeTypeBitfinex.String(), supportEventsBitfinex)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Bitfinex{
 		ctx:             ctx,

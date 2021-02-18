@@ -1,4 +1,4 @@
-package nexus
+package proxy
 
 import (
 	"DaruBot/pkg/tools"

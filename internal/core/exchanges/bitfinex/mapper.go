@@ -2,6 +2,7 @@ package bitfinex
 
 import (
 	"DaruBot/internal/models"
+	"DaruBot/internal/models/exchanges"
 	"DaruBot/pkg/errors"
 	"DaruBot/pkg/tools"
 	"fmt"
@@ -91,7 +92,7 @@ func bitfinexOrderToModel(or interface{}) (*models.Order, bool) {
 		rs.Type = models.OrderTypeUnknown
 	}
 
-	rs.Meta["Exchange"] = models.ExchangeTypeBitfinex
+	rs.Meta["Exchange"] = exchanges.ExchangeTypeBitfinex
 	rs.Meta["Status"] = o.Status
 	rs.Meta["Type"] = o.Type
 	rs.Meta["Flags"] = o.Flags
@@ -127,7 +128,7 @@ func bitfinexPositionToModel(po interface{}) (*models.Position, bool) {
 		Meta:                 make(map[string]interface{}),
 	}
 
-	rs.Meta["Exchange"] = models.ExchangeTypeBitfinex
+	rs.Meta["Exchange"] = exchanges.ExchangeTypeBitfinex
 	rs.Meta["Status"] = p.Status
 
 	return rs, true
@@ -148,7 +149,7 @@ func bitfinexTickerToModel(tk interface{}) (*models.Ticker, bool) {
 	rs := &models.Ticker{
 		Pair:     t.Symbol,
 		Price:    t.LastPrice,
-		Exchange: models.ExchangeTypeBitfinex,
+		Exchange: exchanges.ExchangeTypeBitfinex,
 		State: models.TickerState{
 			High:    t.High,
 			Low:     t.Low,

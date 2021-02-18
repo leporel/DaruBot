@@ -16,7 +16,7 @@ func (e *event) Is(c EventHead) bool {
 	return e.EventHead == c
 }
 
-type ModuleType uint8
+type ModuleType string
 
 type EventHead interface {
 	GetModuleType() ModuleType
@@ -37,6 +37,9 @@ func (e *eventHead) GetEventName() string {
 	return e.EventName
 }
 
+// NewEvent create new event type
+// If dataType if nil, then type of event will be not compare to type of payload
+// May be helpful if  you are not restrict type of payload or you dont wanna use reflect
 func NewEvent(moduleType ModuleType, name string, dataType interface{}) *eventHead {
 	if name == "" {
 		panic("empty name")
@@ -69,19 +72,33 @@ func BuildEvent(head EventHead, moduleName string, payload interface{}) *event {
 }
 
 type Watcher struct {
-	eventPipe       chan *event
+	eventPipe       chan *event // lazy init
 	subscribeEvents []EventHead
+	handler         func(*event)
 }
 
 func newWatcher(heads ...EventHead) *Watcher {
 	return &Watcher{
-		eventPipe:       make(chan *event, 10),
 		subscribeEvents: heads,
 	}
 }
 
+// Listen make and return of event channel
+// If channel not have readers, then will be runtime deadlock when buffer is full
 func (w *Watcher) Listen() <-chan *event {
+	if w.eventPipe == nil {
+		w.eventPipe = make(chan *event, 30)
+	}
 	return w.eventPipe
+}
+
+// SetHandler set func to handle events from this watcher
+func (w *Watcher) SetHandler(handler func(*event)) error {
+	if handler == nil {
+		return fmt.Errorf("handler is nil")
+	}
+	w.handler = handler
+	return nil
 }
 
 func (w *Watcher) isListenType(head EventHead) bool {
@@ -112,35 +129,41 @@ func NewWatcherManager() *Manager {
 	}
 }
 
-func (w *Manager) RegisterEvents(moduleName string, events EventsMap) {
+// RegisterEvents register events list type for module, it will be used only for output from SupportEvents
+func (w *Manager) RegisterEvents(moduleName string, events EventsMap) error {
+	if _, ok := w.modulesTypes[moduleName]; ok {
+		return fmt.Errorf("this module name already exist")
+	}
 	w.modulesTypes[moduleName] = events
+	return nil
 }
 
+// SupportEvents returns the list of events wich may be send by this module
 func (w *Manager) SupportEvents(moduleName string) EventsMap {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.modulesTypes[moduleName]
 }
 
-func (w *Manager) New(name string, heads ...EventHead) (*Watcher, error) {
+func (w *Manager) New(watcherName string, eventsType ...EventHead) (*Watcher, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if _, ok := w.watchers[name]; ok {
-		return nil, fmt.Errorf("watcher name '%s' already exist", name)
+	if _, ok := w.watchers[watcherName]; ok {
+		return nil, fmt.Errorf("watcher name '%s' already exist", watcherName)
 	}
 
-	wh := newWatcher(heads...)
+	wh := newWatcher(eventsType...)
 
-	w.watchers[name] = wh
+	w.watchers[watcherName] = wh
 
 	return wh, nil
 }
 
-func (w *Manager) MustNew(name string, heads ...EventHead) *Watcher {
-	wh, err := w.New(name, heads...)
+func (w *Manager) MustNew(watcherName string, eventsType ...EventHead) *Watcher {
+	wh, err := w.New(watcherName, eventsType...)
 	if err != nil {
-		panic(fmt.Errorf("watcher name '%s' already exist", name))
+		panic(fmt.Errorf("watcher name '%s' already exist", watcherName))
 	}
 
 	return wh
@@ -156,7 +179,12 @@ func (w *Manager) Emmit(evt *event) error {
 
 	for _, wh := range w.watchers {
 		if wh.isListenType(evt.EventHead) {
-			wh.eventPipe <- evt
+			if wh.eventPipe != nil {
+				wh.eventPipe <- evt
+			}
+			if wh.handler != nil {
+				wh.handler(evt)
+			}
 		}
 	}
 
@@ -173,18 +201,19 @@ func (w *Manager) checkType(evt *event) error {
 	return nil
 }
 
-func (w *Manager) Remove(name string) bool {
+func (w *Manager) Remove(watcherName string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	wh, ok := w.watchers[name]
+	wh, ok := w.watchers[watcherName]
 	if !ok {
 		return false
 	}
+	if wh.eventPipe != nil {
+		close(wh.eventPipe)
+	}
 
-	close(wh.eventPipe)
-
-	delete(w.watchers, name)
+	delete(w.watchers, watcherName)
 
 	return true
 }

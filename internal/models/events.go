@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	EventsModuleExchange watcher.ModuleType = iota
+	EventsModuleExchange watcher.ModuleType = "exchange"
 )
 
 var (
