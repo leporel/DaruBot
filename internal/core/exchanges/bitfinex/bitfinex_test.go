@@ -110,7 +110,7 @@ func startWatcher(t *testing.T, bf *Bitfinex) func() {
 }
 
 func Test_BitfinexConnect(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -129,7 +129,7 @@ func Test_BitfinexConnect(t *testing.T) {
 }
 
 func Test_BitfinexOrderAndPositionsList(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -163,7 +163,7 @@ func Test_BitfinexOrderAndPositionsList(t *testing.T) {
 }
 
 func Test_BitfinexOrder(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -216,7 +216,7 @@ func Test_BitfinexOrder(t *testing.T) {
 }
 
 func Test_BitfinexOrderCancelError(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -250,7 +250,7 @@ func Test_BitfinexOrderCancelError(t *testing.T) {
 }
 
 func Test_BitfinexTestPosition(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -324,7 +324,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 }
 
 func Test_BitfinexTicker(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}
@@ -362,7 +362,7 @@ func Test_BitfinexTicker(t *testing.T) {
 }
 
 func Test_BitfinexGetCandles(t *testing.T) {
-	bf, finish, err := newBf(logger.DebugLevel)
+	bf, finish, err := newBf(logger.TraceLevel)
 	if err != nil {
 		t.Errorf("error = %v", err)
 	}

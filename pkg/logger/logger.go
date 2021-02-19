@@ -49,10 +49,12 @@ type Logger interface {
 	Warn(args ...interface{})
 	Debug(args ...interface{})
 	Error(args ...interface{})
+	Trace(args ...interface{})
 	Infof(format string, args ...interface{})
 	Warnf(format string, args ...interface{})
 	Debugf(format string, args ...interface{})
 	Errorf(format string, args ...interface{})
+	Tracef(format string, args ...interface{})
 	Log(logrus.Level, string)
 
 	AddHook(hook Hook, lvls ...Level)
@@ -80,6 +82,10 @@ func (l *logrusLogger) Debug(args ...interface{}) {
 	l.log.Debugln(args...)
 }
 
+func (l *logrusLogger) Trace(args ...interface{}) {
+	l.log.Traceln(args...)
+}
+
 func (l *logrusLogger) Infof(format string, args ...interface{}) {
 	l.log.Infof(format, args...)
 }
@@ -90,6 +96,10 @@ func (l *logrusLogger) Warnf(format string, args ...interface{}) {
 
 func (l *logrusLogger) Debugf(format string, args ...interface{}) {
 	l.log.Debugf(format, args...)
+}
+
+func (l *logrusLogger) Tracef(format string, args ...interface{}) {
+	l.log.Tracef(format, args...)
 }
 
 func (l *logrusLogger) Error(args ...interface{}) {

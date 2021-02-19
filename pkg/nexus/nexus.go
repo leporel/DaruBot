@@ -1,7 +1,6 @@
 package nexus
 
 import (
-	"DaruBot/pkg/logger"
 	"DaruBot/pkg/tools"
 	"context"
 	"fmt"
@@ -9,8 +8,6 @@ import (
 )
 
 type Nexus interface {
-	logger.Hook
-
 	Register(Module) error
 	Send(Message) error
 }
@@ -18,7 +15,6 @@ type Nexus interface {
 type ModuleName string
 
 type Module interface {
-	logger.Hook
 	Send(Message) error
 
 	Init(CommandHandlerFunc) error
@@ -85,10 +81,6 @@ func (n *nexus) receiveCommand(ctx context.Context, cmd Command) (Response, erro
 		return rs, nil
 	}
 	return nil, fmt.Errorf("commands are not listening")
-}
-
-func (n *nexus) Fire(hd *logger.HookData) error {
-	return n.Fire(hd)
 }
 
 func (n *nexus) Register(module Module) error {

@@ -2,11 +2,14 @@ package telegram
 
 import (
 	"DaruBot/internal/config"
+	"DaruBot/pkg/logger"
 	"DaruBot/pkg/nexus"
 	"DaruBot/pkg/proxy"
 	"DaruBot/pkg/tools"
+	"encoding/json"
 	"fmt"
 	tb "gopkg.in/tucnak/telebot.v2"
+	"strconv"
 	"time"
 )
 
@@ -16,9 +19,12 @@ const (
 
 type TgBot struct {
 	bot *tb.Bot
+	log logger.Logger
+	cfg config.Configurations
 }
 
-func NewTelegram(cfg config.Configurations) (*TgBot, error) {
+func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
+	tlog := lg.WithPrefix("nexus", NexusModuleTelegram)
 
 	var poller tb.Poller = &tb.LongPoller{
 		Timeout: 15 * time.Second,
@@ -49,14 +55,12 @@ func NewTelegram(cfg config.Configurations) (*TgBot, error) {
 			endp.Cert = cfg.Nexus.TLSCert.CertFile
 		}
 
-		fmt.Printf("Telegram webhook listening IP: %s. Used custom cert: %v\n",
-			host,
-			cfg.Nexus.Modules.Telegram.CustomCert)
-
 		poller = &tb.Webhook{
 			Listen:   ":8443",
 			Endpoint: endp,
 			TLS:      whTLS,
+			// Not necessary, used to log after
+			HasCustomCert: cfg.Nexus.Modules.Telegram.CustomCert,
 		}
 	}
 
@@ -66,42 +70,140 @@ func NewTelegram(cfg config.Configurations) (*TgBot, error) {
 	}
 
 	rp := func(err error) {
-		// TODO change to log
-		fmt.Println(err)
+		tlog.Error(err)
 	}
 
 	b, err := tb.NewBot(tb.Settings{
-		Client:   httpCli,
-		Token:    cfg.Nexus.Modules.Telegram.APIKey,
-		Poller:   poller,
-		Reporter: rp,
-		Verbose:  true,
+		Client:      httpCli,
+		Token:       cfg.Nexus.Modules.Telegram.APIKey,
+		Poller:      poller,
+		Reporter:    rp,
+		Verbose:     true,
+		Synchronous: true,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := poller.(*tb.Webhook); !ok {
-		fmt.Println("web hook deleted")
-		err = b.RemoveWebhook()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	fmt.Println("Starting bot")
-
-	// TODO
-	// skip pending_update_count (getWebhookInfo)
-	// check can_join_groups
-
-	go func() {
-		b.Start()
-	}()
-
 	return &TgBot{
 		bot: b,
+		log: tlog,
+		cfg: cfg,
 	}, nil
+}
+
+func (t *TgBot) Init() error {
+	if !t.cfg.Nexus.Modules.Telegram.WebhookMode {
+		if err := t.startLongPolling(); err != nil {
+			return err
+		}
+	} else {
+		if err := t.startWebhook(); err != nil {
+			return err
+		}
+
+	}
+
+	// TODO
+	//
+	// check can_join_groups
+
+	time.Sleep(1 * time.Second)
+	t.log.Info("Bot now listening commands")
+
+	return nil
+}
+
+func (t *TgBot) startLongPolling() error {
+	t.log.Debug("web hook deleted")
+	if err := t.bot.RemoveWebhook(); err != nil {
+		return err
+	}
+
+	skipped := 0
+
+	for {
+		offset := t.bot.Poller.(*tb.LongPoller).LastUpdateID + 1
+
+		params := map[string]string{
+			"offset":  strconv.Itoa(offset),
+			"timeout": strconv.Itoa(5),
+		}
+		data, err := t.bot.Raw("getUpdates", params)
+		if err != nil {
+			return err
+		}
+		var resp struct {
+			Result []tb.Update
+		}
+		if err = json.Unmarshal(data, &resp); err != nil {
+			return err
+		}
+		if len(resp.Result) == 0 {
+			break
+		}
+
+		for _, update := range resp.Result {
+			t.bot.Poller.(*tb.LongPoller).LastUpdateID = update.ID
+			skipped++
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	t.log.Tracef("last upd ID: %v", t.bot.Poller.(*tb.LongPoller).LastUpdateID)
+	t.log.Debugf("skipped %v updates", skipped)
+
+	go t.bot.Start()
+
+	return nil
+}
+
+func (t *TgBot) startWebhook() error {
+	wh := t.bot.Poller.(*tb.Webhook)
+
+	t.log.Infof("Telegram webhook listening address %s. Used custom cert: %v\n",
+		wh.Endpoint.PublicURL,
+		wh.HasCustomCert)
+
+	wh, err := t.bot.GetWebhook()
+	if err != nil {
+		return err
+	}
+	pending := wh.PendingUpdates
+
+	skipped := 0
+
+	if pending > 0 {
+		skipDone := make(chan struct{}, 1)
+		updates := make(chan tb.Update, 10)
+		go t.bot.Poller.Poll(t.bot, updates, skipDone)
+
+		for pending > skipped {
+			select {
+			case _ = <-updates:
+				skipped++
+			}
+		}
+		skipDone <- struct{}{}
+		defer close(updates)
+
+		time.Sleep(2 * time.Second)
+	}
+
+	t.log.Debugf("skipped %v updates", skipped)
+
+	go t.bot.Start()
+
+	return nil
+}
+
+func (t *TgBot) Stop() error {
+	t.log.Info("Stopping bot")
+
+	t.bot.Stop()
+
+	return nil
 }
 
 /*func (n *nexus) Fire(hd *logger.HookData) error {
