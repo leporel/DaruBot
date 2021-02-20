@@ -2,7 +2,10 @@ package telegram
 
 import (
 	"DaruBot/internal/config"
+	"DaruBot/internal/nexus/core"
 	"DaruBot/pkg/logger"
+	"DaruBot/pkg/nexus"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -33,6 +36,12 @@ func newTg() (*TgBot, error) {
 	lg := logger.New(os.Stdout, logger.TraceLevel)
 
 	return NewTelegram(config.Config, lg)
+}
+
+func dumbHandler(ctx context.Context, cmd nexus.Command) (nexus.Response, error) {
+	return &core.Response{
+		Rsp: nil,
+	}, nil
 }
 
 func Test_TLS(t *testing.T) {
@@ -93,7 +102,7 @@ func Test_TelegramWebHook(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = tg.Init()
+	err = tg.Init(dumbHandler)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +131,7 @@ func Test_Telegram(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = tg.Init()
+	err = tg.Init(dumbHandler)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,5 +151,107 @@ func Test_Telegram(t *testing.T) {
 	})
 
 	for !stop {
+	}
+}
+
+func Test_TelegramSendToGroup(t *testing.T) {
+	tg, err := newTg()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tg.Init(dumbHandler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tg.Stop()
+
+	_, err = tg.bot.Send(tb.ChatID(tg.cfg.Nexus.Modules.Telegram.GroupID), fmt.Sprintf("@%s 123", tg.userName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tg.bot.Send(tb.ChatID(tg.cfg.Nexus.Modules.Telegram.GroupID), "123", tb.Silent, tb.NoPreview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tg.bot.Send(tb.ChatID(tg.cfg.Nexus.Modules.Telegram.GroupID), "`123`", tb.ModeMarkdownV2)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func Test_TelegramSendMenu(t *testing.T) {
+	tg, err := newTg()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tg.Init(dumbHandler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tg.Stop()
+
+	menu := &tb.ReplyMarkup{ResizeReplyKeyboard: true}
+
+	btnHelp := menu.Text("1")
+	btnSettings := menu.Text("2")
+
+	//menu.Text("Hello!")
+	//menu.Contact("Send phone number")
+	//menu.Location("Send location")
+	//menu.Poll(tb.PollQuiz)
+
+	menu.Reply(
+		menu.Row(btnHelp),
+		menu.Row(btnSettings),
+	)
+
+	// b.Handle(&btnHelp, func(m *tb.Message) {...})
+
+	_, err = tg.bot.Send(tb.ChatID(tg.cfg.Nexus.Modules.Telegram.UserID), "Hello!", menu)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func Test_TelegramSendSelector(t *testing.T) {
+	tg, err := newTg()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tg.Init(dumbHandler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tg.Stop()
+
+	selector := &tb.ReplyMarkup{}
+
+	btnPrev := selector.Data("⬅", "prev")
+	btnNext := selector.Data("➡", "next")
+
+	// Inline buttons:
+	//selector.Data("Show help", "help") // data is optional
+	//selector.Data("Delete item", "delete", item.ID)
+	//selector.URL("Visit", "https://google.com")
+	//selector.Query("Search", query)
+	//selector.QueryChat("Share", query)
+	//selector.Login("Login", &tb.Login{...})
+
+	selector.Inline(
+		selector.Row(btnPrev, btnNext),
+	)
+
+	//b.Handle(&btnPrev, func(c *tb.Callback) {
+	//	// ...
+	//	// Always respond!
+	//	b.Respond(c, &tb.CallbackResponse{...})
+	//})
+
+	_, err = tg.bot.Send(tb.ChatID(tg.cfg.Nexus.Modules.Telegram.UserID), "Hello!", selector)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

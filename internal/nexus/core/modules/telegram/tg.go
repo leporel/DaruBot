@@ -18,12 +18,24 @@ const (
 )
 
 type TgBot struct {
-	bot *tb.Bot
-	log logger.Logger
-	cfg config.Configurations
+	bot        *tb.Bot
+	poller     tb.Poller
+	log        logger.Logger
+	cfg        config.Configurations
+	cmdHandler nexus.CommandHandlerFunc
+
+	userName   string
+	groupReady bool
 }
 
 func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
+	if cfg.Nexus.Modules.Telegram.APIKey == "" {
+		return nil, fmt.Errorf("telegram api key empty")
+	}
+	if cfg.Nexus.Modules.Telegram.UserID == 0 {
+		return nil, fmt.Errorf("telegram user id are not provided")
+	}
+
 	tlog := lg.WithPrefix("nexus", NexusModuleTelegram)
 
 	var poller tb.Poller = &tb.LongPoller{
@@ -73,10 +85,20 @@ func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
 		tlog.Error(err)
 	}
 
+	filter := func(update *tb.Update) bool {
+		if update.Message.Sender != nil &&
+			update.Message.Sender.ID == cfg.Nexus.Modules.Telegram.UserID {
+			return true
+		}
+		tlog.Debugf("Message from unknown sender %#v", update.Message.Sender)
+		return false
+	}
+	pmw := tb.NewMiddlewarePoller(poller, filter)
+
 	b, err := tb.NewBot(tb.Settings{
 		Client:      httpCli,
 		Token:       cfg.Nexus.Modules.Telegram.APIKey,
-		Poller:      poller,
+		Poller:      pmw,
 		Reporter:    rp,
 		Verbose:     true,
 		Synchronous: true,
@@ -86,13 +108,14 @@ func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
 	}
 
 	return &TgBot{
-		bot: b,
-		log: tlog,
-		cfg: cfg,
+		bot:    b,
+		poller: poller,
+		log:    tlog,
+		cfg:    cfg,
 	}, nil
 }
 
-func (t *TgBot) Init() error {
+func (t *TgBot) Init(handler nexus.CommandHandlerFunc) error {
 	if !t.cfg.Nexus.Modules.Telegram.WebhookMode {
 		if err := t.startLongPolling(); err != nil {
 			return err
@@ -101,15 +124,53 @@ func (t *TgBot) Init() error {
 		if err := t.startWebhook(); err != nil {
 			return err
 		}
-
 	}
 
-	// TODO
-	//
-	// check can_join_groups
+	if err := t.initChats(); err != nil {
+		return err
+	}
+
+	t.bot.Handle("/menu", func(m *tb.Message) {
+		// TODO handle menu
+	})
 
 	time.Sleep(1 * time.Second)
+	t.cmdHandler = handler
 	t.log.Info("Bot now listening commands")
+
+	return nil
+}
+
+func (t *TgBot) initChats() error {
+	if t.cfg.Nexus.Modules.Telegram.GroupID != 0 && !t.bot.Me.CanJoinGroups {
+		t.log.Warn("bot dont have permission join to groups, logs not will be send to group")
+	} else {
+		chat, err := t.bot.ChatByID(fmt.Sprint(t.cfg.Nexus.Modules.Telegram.GroupID))
+		if err != nil {
+			return err
+		}
+
+		if chat.Type != tb.ChatGroup {
+			t.log.Warnf("chat %v are not group", chat.Title)
+		} else if me, err := t.bot.ChatMemberOf(chat, t.bot.Me); err != nil {
+			return err
+		} else if me.Role != tb.Member {
+			t.log.Warnf("bot are not member of group %v", chat.Title)
+		} else {
+			t.groupReady = true
+		}
+	}
+
+	chat, err := t.bot.ChatByID(fmt.Sprint(t.cfg.Nexus.Modules.Telegram.UserID))
+	if err != nil {
+		return err
+	}
+
+	if chat.Type != tb.ChatPrivate {
+		t.log.Warnf("chat id %v are not chat with user", t.cfg.Nexus.Modules.Telegram.UserID)
+	}
+
+	t.userName = chat.Username
 
 	return nil
 }
@@ -123,7 +184,7 @@ func (t *TgBot) startLongPolling() error {
 	skipped := 0
 
 	for {
-		offset := t.bot.Poller.(*tb.LongPoller).LastUpdateID + 1
+		offset := t.poller.(*tb.LongPoller).LastUpdateID + 1
 
 		params := map[string]string{
 			"offset":  strconv.Itoa(offset),
@@ -144,14 +205,14 @@ func (t *TgBot) startLongPolling() error {
 		}
 
 		for _, update := range resp.Result {
-			t.bot.Poller.(*tb.LongPoller).LastUpdateID = update.ID
+			t.poller.(*tb.LongPoller).LastUpdateID = update.ID
 			skipped++
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 
-	t.log.Tracef("last upd ID: %v", t.bot.Poller.(*tb.LongPoller).LastUpdateID)
+	t.log.Tracef("last upd ID: %v", t.poller.(*tb.LongPoller).LastUpdateID)
 	t.log.Debugf("skipped %v updates", skipped)
 
 	go t.bot.Start()
@@ -160,7 +221,7 @@ func (t *TgBot) startLongPolling() error {
 }
 
 func (t *TgBot) startWebhook() error {
-	wh := t.bot.Poller.(*tb.Webhook)
+	wh := t.poller.(*tb.Webhook)
 
 	t.log.Infof("Telegram webhook listening address %s. Used custom cert: %v\n",
 		wh.Endpoint.PublicURL,
@@ -177,7 +238,7 @@ func (t *TgBot) startWebhook() error {
 	if pending > 0 {
 		skipDone := make(chan struct{}, 1)
 		updates := make(chan tb.Update, 10)
-		go t.bot.Poller.Poll(t.bot, updates, skipDone)
+		go t.poller.Poll(t.bot, updates, skipDone)
 
 		for pending > skipped {
 			select {
@@ -204,6 +265,18 @@ func (t *TgBot) Stop() error {
 	t.bot.Stop()
 
 	return nil
+}
+
+func (t *TgBot) Name() nexus.ModuleName {
+	return NexusModuleTelegram
+}
+
+func (t *TgBot) ListenForType(pType nexus.PayloadType) bool {
+	panic("not implemented")
+}
+
+func (t *TgBot) Send(message nexus.Message) error {
+	panic("not implemented")
 }
 
 /*func (n *nexus) Fire(hd *logger.HookData) error {

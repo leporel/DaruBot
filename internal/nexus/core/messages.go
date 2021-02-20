@@ -1,7 +1,7 @@
-package nexus
+package core
 
 import (
-	"DaruBot/internal/nexus/pb/schema/gen"
+	"DaruBot/internal/nexus/core/pb/schema/gen"
 	"DaruBot/pkg/nexus"
 	"google.golang.org/protobuf/proto"
 )

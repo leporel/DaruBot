@@ -1,4 +1,4 @@
-package nexus
+package core
 
 import (
 	"DaruBot/pkg/nexus"

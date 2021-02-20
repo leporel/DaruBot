@@ -2,6 +2,7 @@ package config
 
 import (
 	"DaruBot/cmd"
+	"DaruBot/pkg/tools"
 	"os"
 )
 
@@ -39,8 +40,8 @@ var (
 					WebhookMode: false,
 					CustomCert:  false,
 					APIKey:      os.Getenv("TG_API_KEY"),
-					Group:       os.Getenv("TG_GROUP_ID"),
-					User:        os.Getenv("TG_USER_ID"),
+					GroupID:     tools.StrToIntMust(os.Getenv("TG_GROUP_ID")),
+					UserID:      tools.StrToIntMust(os.Getenv("TG_USER_ID")),
 				},
 			},
 			TLSCert: TLSCert{
@@ -98,8 +99,8 @@ type Telegram struct {
 	WebhookMode bool
 	CustomCert  bool
 	APIKey      string
-	Group       string
-	User        string
+	GroupID     int
+	UserID      int
 }
 
 type TLSCert struct {
