@@ -7,7 +7,9 @@ import (
 )
 
 type Configurations struct {
-	debugMode  bool
+	debugMode bool
+	Storage   Storage
+
 	Logger     Logger
 	Exchanges  Exchanges
 	Strategies Strategies
@@ -51,6 +53,11 @@ var (
 			},
 			Proxy: Proxy{
 				Addr: os.Getenv("PROXY_ADDR"),
+			},
+		},
+		Storage: Storage{
+			Local: StorageLocal{
+				Path: "./storage.db",
 			},
 		},
 	}
@@ -111,4 +118,12 @@ type TLSCert struct {
 
 type Proxy struct {
 	Addr string
+}
+
+type Storage struct {
+	Local StorageLocal
+}
+
+type StorageLocal struct {
+	Path string
 }

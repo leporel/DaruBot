@@ -209,7 +209,7 @@ func (b *Bitfinex) listen() {
 
 			case *websocket.InfoEvent:
 				// this event confirms connection to the bfx websocket
-				b.log.Tracef("INFO EVENT: %#v", data)
+				b.log.Debugf("INFO EVENT: %#v", data)
 
 				if data.Platform.Status == 0 {
 					b.log.Error(exchanges2.ErrNotOperate)
@@ -218,7 +218,7 @@ func (b *Bitfinex) listen() {
 				}
 
 			case websocket.PlatformInfo:
-				b.log.Tracef("PLATFORM INFO: %#v", data)
+				b.log.Debugf("PLATFORM INFO: %#v", data)
 				if data.Status == 0 {
 					b.log.Error(exchanges2.ErrNotOperate)
 					b.emmit(models.EventError, exchanges2.ErrNotOperate)
@@ -226,13 +226,13 @@ func (b *Bitfinex) listen() {
 				}
 
 			case *websocket.SubscribeEvent:
-				b.log.Tracef("SUBSCRIBE EVENT %#v", data)
+				b.log.Debugf("SUBSCRIBE EVENT %#v", data)
 
 			case *websocket.UnsubscribeEvent:
-				b.log.Tracef("UNSUBSCRIBE EVENT %#v", data)
+				b.log.Debugf("UNSUBSCRIBE EVENT %#v", data)
 
 			case *wallet.Snapshot:
-				b.log.Tracef("WALLET SNAPSHOT %#v", data)
+				b.log.Debugf("WALLET SNAPSHOT %#v", data)
 
 				b.walletsMargin.Clear()
 				b.walletsExchange.Clear()
@@ -243,7 +243,7 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *wallet.Update:
-				b.log.Tracef("WALLET UPDATE %#v", data)
+				b.log.Debugf("WALLET UPDATE %#v", data)
 
 				w := wallet.Wallet(*data)
 				wl := b.updateWallet(&w)
@@ -252,7 +252,7 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *balanceinfo.Update:
-				b.log.Tracef("BALANCE INFO %#v", data)
+				b.log.Debugf("BALANCE INFO %#v", data)
 
 				b.balance.Total = data.TotalAUM
 				b.balance.Total = data.NetAUM
@@ -260,7 +260,7 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *position.Snapshot:
-				b.log.Tracef("POSITION SNAPSHOT %#v", data)
+				b.log.Debugf("POSITION SNAPSHOT %#v", data)
 
 				for _, p := range data.Snapshot {
 					b.processPosition(p)
@@ -268,13 +268,13 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *position.Update:
-				b.log.Tracef("POSITION UPDATE %#v", data)
+				b.log.Debugf("POSITION UPDATE %#v", data)
 
 				b.processPosition((*position.Position)(data))
 				b.lastUpdate = time.Now()
 
 			case *position.New:
-				b.log.Tracef("POSITION NEW %#v", data)
+				b.log.Debugf("POSITION NEW %#v", data)
 				p := (*position.Position)(data)
 
 				b.positions.Add(p)
@@ -283,13 +283,13 @@ func (b *Bitfinex) listen() {
 				b.emmit(models.EventPositionNew, *b.convertPosition(data))
 
 			case *position.Cancel:
-				b.log.Tracef("POSITION CANCEL %#v", data)
+				b.log.Debugf("POSITION CANCEL %#v", data)
 
 				b.processPosition((*position.Position)(data))
 				b.lastUpdate = time.Now()
 
 			case *order.Snapshot:
-				b.log.Tracef("ORDER SNAPSHOT %#v", data)
+				b.log.Debugf("ORDER SNAPSHOT %#v", data)
 
 				for _, o := range data.Snapshot {
 					b.processOrder(o)
@@ -298,21 +298,21 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *order.Update:
-				b.log.Tracef("ORDER UPDATE %#v", data)
+				b.log.Debugf("ORDER UPDATE %#v", data)
 
 				b.processOrder((*order.Order)(data))
 
 				b.lastUpdate = time.Now()
 
 			case *order.Cancel:
-				b.log.Tracef("ORDER CANCEL %#v", data)
+				b.log.Debugf("ORDER CANCEL %#v", data)
 
 				b.processOrder((*order.Order)(data))
 
 				b.lastUpdate = time.Now()
 
 			case *order.New:
-				b.log.Tracef("ORDER NEW %#v", data)
+				b.log.Debugf("ORDER NEW %#v", data)
 
 				o := (*order.Order)(data)
 				b.orders.Add(o)
@@ -321,48 +321,48 @@ func (b *Bitfinex) listen() {
 				b.lastUpdate = time.Now()
 
 			case *tradeexecution.TradeExecution:
-				b.log.Tracef("TRADE EXECUTION:  %#v", data)
+				b.log.Debugf("TRADE EXECUTION:  %#v", data)
 
 			case *tradeexecutionupdate.TradeExecutionUpdate:
-				b.log.Tracef("TRADE EXECUTION UPDATE:  %#v", data)
+				b.log.Debugf("TRADE EXECUTION UPDATE:  %#v", data)
 
 			case *trade.Trade:
-				b.log.Tracef("TRADE NEW:  %#v", data)
+				b.log.Debugf("TRADE NEW:  %#v", data)
 
 			case *trade.Snapshot:
-				b.log.Tracef("TRADE SNAPSHOT:  %#v", data)
+				b.log.Debugf("TRADE SNAPSHOT:  %#v", data)
 
 			case *ticker.Snapshot:
-				b.log.Tracef("TICKER SNAPSHOT:  %#v", data)
+				b.log.Debugf("TICKER SNAPSHOT:  %#v", data)
 
 				for _, t := range data.Snapshot {
 					b.emmit(models.EventTickerState, *b.convertTicker(t))
 				}
 
 			case *ticker.Ticker:
-				b.log.Tracef("TICKER:  %#v", data)
+				b.log.Debugf("TICKER:  %#v", data)
 
 				b.emmit(models.EventTickerState, *b.convertTicker(data))
 
 			case *ticker.Update:
-				b.log.Tracef("TICKER UPDATE:  %#v", data)
+				b.log.Debugf("TICKER UPDATE:  %#v", data)
 
 				b.emmit(models.EventTickerState, *b.convertTicker(data))
 
 			case *candle.Snapshot:
-				b.log.Tracef("CANDLE SNAPSHOT:  %#v", data)
+				b.log.Debugf("CANDLE SNAPSHOT:  %#v", data)
 
 				for _, c := range data.Snapshot {
 					b.emmit(models.EventTickerState, *b.convertCandle(c))
 				}
 
 			case *candle.Candle:
-				b.log.Tracef("CANDLE:  %#v", data)
+				b.log.Debugf("CANDLE:  %#v", data)
 
 				b.emmit(models.EventTickerState, *b.convertCandle(data))
 
 			case *notification.Notification:
-				b.log.Tracef("NOTIFICATION NEW:  %#v", data)
+				b.log.Debugf("NOTIFICATION NEW:  %#v", data)
 
 				ord := &order.Order{}
 
