@@ -43,7 +43,7 @@ func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
 	}
 
 	if cfg.Nexus.Modules.Telegram.WebhookMode {
-		host := cfg.Nexus.TLSCert.Url
+		host := cfg.Nexus.TLS.Url
 
 		if host == "" {
 			myIP, err := tools.GetIP(nil)
@@ -61,10 +61,10 @@ func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
 		// If self signed cert provided
 		if cfg.Nexus.Modules.Telegram.CustomCert {
 			whTLS = &tb.WebhookTLS{
-				Key:  cfg.Nexus.TLSCert.KeyFile,
-				Cert: cfg.Nexus.TLSCert.CertFile,
+				Key:  cfg.Nexus.TLS.KeyFile,
+				Cert: cfg.Nexus.TLS.CertFile,
 			}
-			endp.Cert = cfg.Nexus.TLSCert.CertFile
+			endp.Cert = cfg.Nexus.TLS.CertFile
 		}
 
 		poller = &tb.Webhook{

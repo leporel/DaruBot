@@ -18,24 +18,25 @@ import (
 )
 
 func newTgWh() (*TgBot, error) {
-	config.Config.Nexus.TLSCert = config.TLSCert{
+	cfg := config.GetDefaultConfig()
+	cfg.Nexus.TLS = config.TLSCert{
 		Url:      "",
 		KeyFile:  "../../../../assets/certs/key.pem",
 		CertFile: "../../../../assets/certs/cert.pem",
 	}
 	//config.Config.Nexus.Proxy.Addr = "94.130.73.18:1145"
-	config.Config.Nexus.Modules.Telegram.WebhookMode = true
-	config.Config.Nexus.Modules.Telegram.CustomCert = true
+	cfg.Nexus.Modules.Telegram.WebhookMode = true
+	cfg.Nexus.Modules.Telegram.CustomCert = true
 
 	lg := logger.New(os.Stdout, logger.TraceLevel)
 
-	return NewTelegram(config.Config, lg)
+	return NewTelegram(cfg, lg)
 }
 
 func newTg() (*TgBot, error) {
 	lg := logger.New(os.Stdout, logger.TraceLevel)
 
-	return NewTelegram(config.Config, lg)
+	return NewTelegram(config.GetDefaultConfig(), lg)
 }
 
 func dumbHandler(ctx context.Context, cmd nexus.Command) (nexus.Response, error) {

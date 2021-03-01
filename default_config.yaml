@@ -1,0 +1,17 @@
+exchanges:
+  bitfinex:
+    strategy: ""
+logger:
+  fileoutput: false
+nexus:
+  modules:
+    telegram:
+      customcert: false
+      enabled: false
+      webhookmode: false
+  tls:
+    certfile: ""
+    keyfile: ""
+storage:
+  local:
+    path: ./storage.db

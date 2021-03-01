@@ -692,7 +692,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		Amount:        Amount,
 		Price:         Price,
 		PriceAuxLimit: PriceAuxLimit,
-		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate,
+		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate(),
 	}
 
 	b.log.Debugf("Submitting order: %#v", req)
@@ -874,7 +874,7 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		Symbol:        Pair,
 		Type:          "MARKET",
 		Amount:        -p.Amount,
-		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate,
+		AffiliateCode: b.cfg.Exchanges.Bitfinex.Affiliate(),
 		Close:         true,
 	}
 

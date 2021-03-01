@@ -80,7 +80,7 @@ func newBf(level logger.Level) (*Bitfinex, func(), error) {
 
 	wManager := watcher.NewWatcherManager()
 
-	bf, err := newBitfinex(ctx, config.Config, wManager, lg)
+	bf, err := newBitfinex(ctx, config.GetDefaultConfig(), wManager, lg)
 
 	return bf, finish, err
 }

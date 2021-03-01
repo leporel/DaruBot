@@ -8,8 +8,8 @@ import (
 )
 
 func newLS() (*localStorage, error) {
-	cfg := config.Config
-	cfg.Storage.Local.Path = "./../data/storage_test.db"
+	cfg := config.GetDefaultConfig()
+	cfg.Storage.Local.Path = "../test_data/storage_test.db"
 	return New(cfg)
 }
 

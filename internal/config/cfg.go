@@ -1,7 +1,6 @@
 package config
 
 import (
-	"DaruBot/cmd"
 	"DaruBot/pkg/tools"
 	"os"
 )
@@ -12,59 +11,8 @@ type Configurations struct {
 
 	Logger     Logger
 	Exchanges  Exchanges
-	Strategies Strategies
+	Strategies map[string]interface{}
 	Nexus      Nexus
-}
-
-var (
-	Config = Configurations{
-		debugMode: cmd.DebugMode,
-		Logger: Logger{
-			FileOutput: false,
-		},
-		Exchanges: Exchanges{
-			Bitfinex: Bitfinex{
-				ApiKey:    os.Getenv("BITFINEX_API_KEY"),
-				ApiSec:    os.Getenv("BITFINEX_API_SEC"),
-				Strategy:  "DaruStonks",
-				Affiliate: "jXAX6tEPA",
-			},
-		},
-		Strategies: Strategies{
-			DaruStonks: DaruStonks{
-				Pair:   "tTESTBTC:TESTUSD",
-				Margin: false,
-			}},
-		Nexus: Nexus{
-			Modules: Modules{
-				Telegram{
-					Enabled:     false,
-					WebhookMode: false,
-					CustomCert:  false,
-					APIKey:      os.Getenv("TG_API_KEY"),
-					GroupID:     tools.StrToIntMust(os.Getenv("TG_GROUP_ID")),
-					UserID:      tools.StrToIntMust(os.Getenv("TG_USER_ID")),
-				},
-			},
-			TLSCert: TLSCert{
-				Url:      os.Getenv("TLS_HOST"),
-				KeyFile:  "",
-				CertFile: "",
-			},
-			Proxy: Proxy{
-				Addr: os.Getenv("PROXY_ADDR"),
-			},
-		},
-		Storage: Storage{
-			Local: StorageLocal{
-				Path: "./storage.db",
-			},
-		},
-	}
-)
-
-func (c Configurations) IsDebug() bool {
-	return c.debugMode
 }
 
 type Logger struct {
@@ -76,10 +24,14 @@ type Exchanges struct {
 }
 
 type Bitfinex struct {
-	ApiKey    string
-	ApiSec    string
+	ApiKey    string `mapstructure:",omitempty" yaml:",omitempty"`
+	ApiSec    string `mapstructure:",omitempty" yaml:",omitempty"`
 	Strategy  string
-	Affiliate string
+	affiliate string
+}
+
+func (b *Bitfinex) Affiliate() string {
+	return b.affiliate
 }
 
 type DaruStonks struct {
@@ -87,13 +39,9 @@ type DaruStonks struct {
 	Margin bool
 }
 
-type Strategies struct {
-	DaruStonks DaruStonks
-}
-
 type Nexus struct {
 	Modules Modules
-	TLSCert TLSCert
+	TLS     TLSCert
 	Proxy   Proxy
 }
 
@@ -105,19 +53,19 @@ type Telegram struct {
 	Enabled     bool
 	WebhookMode bool
 	CustomCert  bool
-	APIKey      string
-	GroupID     int
-	UserID      int
+	APIKey      string `mapstructure:",omitempty" yaml:",omitempty"`
+	GroupID     int    `mapstructure:",omitempty" yaml:",omitempty"`
+	UserID      int    `mapstructure:",omitempty" yaml:",omitempty"`
 }
 
 type TLSCert struct {
-	Url      string
+	Url      string `mapstructure:",omitempty" yaml:",omitempty"`
 	KeyFile  string
 	CertFile string
 }
 
 type Proxy struct {
-	Addr string
+	Addr string `mapstructure:",omitempty" yaml:",omitempty"`
 }
 
 type Storage struct {
@@ -126,4 +74,72 @@ type Storage struct {
 
 type StorageLocal struct {
 	Path string
+}
+
+var (
+	defaultConfig = Configurations{
+		debugMode: true,
+		Logger: Logger{
+			FileOutput: false,
+		},
+		Exchanges: Exchanges{
+			Bitfinex: Bitfinex{
+				ApiKey:    "",
+				ApiSec:    "",
+				Strategy:  "",
+				affiliate: "jXAX6tEPA",
+			},
+		},
+		Strategies: make(map[string]interface{}),
+		Nexus: Nexus{
+			Modules: Modules{
+				Telegram{
+					Enabled:     false,
+					WebhookMode: false,
+					CustomCert:  false,
+					APIKey:      "",
+					GroupID:     0,
+					UserID:      0,
+				},
+			},
+			TLS: TLSCert{
+				Url:      "",
+				KeyFile:  "",
+				CertFile: "",
+			},
+			Proxy: Proxy{
+				Addr: "",
+			},
+		},
+		Storage: Storage{
+			Local: StorageLocal{
+				Path: "./storage.db",
+			},
+		},
+	}
+)
+
+func (c *Configurations) IsDebug() bool {
+	return c.debugMode
+}
+
+func (c *Configurations) SetDebug(enable bool) {
+	c.debugMode = enable
+}
+
+func GetDefaultConfig() Configurations {
+	cfg := defaultConfig
+
+	cfg.Exchanges.Bitfinex.ApiKey = os.Getenv("BITFINEX_API_KEY")
+	cfg.Exchanges.Bitfinex.ApiSec = os.Getenv("BITFINEX_API_SEC")
+
+	cfg.Nexus.Modules.Telegram.APIKey = os.Getenv("TG_API_KEY")
+	cfg.Nexus.Modules.Telegram.GroupID = tools.StrToIntMust(os.Getenv("TG_GROUP_ID"))
+	cfg.Nexus.Modules.Telegram.UserID = tools.StrToIntMust(os.Getenv("TG_USER_ID"))
+
+	cfg.Nexus.TLS.Url = os.Getenv("TLS_HOST")
+
+	cfg.Nexus.Proxy.Addr = os.Getenv("PROXY_ADDR")
+
+	return cfg
 }

@@ -2,4 +2,6 @@
 /.vs/
 assets/certs/cert.pem
 assets/certs/key.pem
-/data/storage_test.db
+/test_data/
+/DaruBot.exe
+/DaruBot
