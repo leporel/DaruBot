@@ -19,6 +19,6 @@ var (
 
 	ErrPositionNotFound = errors.New("POSITION NOT FOUND")
 
-	ErrPairIncorrect    = errors.New("PAIR INCORRECT")
-	ErrPairNotSupported = errors.New("PAIR NOT SUPPORTED")
+	ErrSymbolIncorrect    = errors.New("PAIR INCORRECT")
+	ErrSymbolNotSupported = errors.New("PAIR NOT SUPPORTED")
 )

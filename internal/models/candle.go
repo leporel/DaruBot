@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"github.com/markcheno/go-quote"
 	"time"
 )
 
@@ -49,14 +50,57 @@ func CandleResolutionFromString(str string) (CandleResolution, error) {
 	return OneMinute, fmt.Errorf("could not convert string to resolution: %s", str)
 }
 
+func CandleResolutionFromDuration(d time.Duration) (CandleResolution, error) {
+	switch d {
+	case time.Minute:
+		return OneMinute, nil
+	case time.Minute * 5:
+		return FiveMinutes, nil
+	case time.Minute * 15:
+		return FifteenMinutes, nil
+	case time.Minute * 30:
+		return ThirtyMinutes, nil
+	case time.Hour:
+		return OneHour, nil
+	case time.Hour * 3:
+		return ThreeHours, nil
+	case time.Hour * 6:
+		return SixHours, nil
+	case time.Hour * 12:
+		return TwelveHours, nil
+	case time.Hour * 24:
+		return OneDay, nil
+	case time.Hour * 24 * 7:
+		return OneWeek, nil
+	}
+	return OneMinute, fmt.Errorf("could not convert duration to resolution: %s", d)
+}
+
+func QuoteToModel(q *quote.Quote, symbol string, index int, d time.Duration) *Candle {
+	res, err := CandleResolutionFromDuration(d)
+	if err != nil {
+		res = ""
+	}
+	return &Candle{
+		Symbol:     symbol,
+		Resolution: res,
+		Date:       q.Date[index],
+		Open:       q.Open[index],
+		Close:      q.Close[index],
+		High:       q.High[index],
+		Low:        q.Low[index],
+		Volume:     q.Volume[index],
+	}
+}
+
 type Candles struct {
-	Pair       string
+	Symbol     string
 	Resolution CandleResolution
 	Candles    []*Candle
 }
 
 type Candle struct {
-	Pair       string
+	Symbol     string
 	Resolution CandleResolution
 	Date       time.Time
 	Open       float64

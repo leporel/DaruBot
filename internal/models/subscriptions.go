@@ -10,9 +10,9 @@ const (
 )
 
 type Subscription struct {
-	ID   string
-	Pair string
-	Type SubType
+	ID     string
+	Symbol string
+	Type   SubType
 }
 
 type Subscriptions struct {

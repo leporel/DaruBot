@@ -24,8 +24,8 @@ $$$$$$$  |\$$$$$$$ |$$ |      \$$$$$$  |      $$$$$$$  |\$$$$$$  | \$$$$  |
 
 	DebugMode  = false
 	Ver        = "unknown"
-	BuildDate  = ""
-	GitCommit  = ""
+	BuildDate  = "unknown"
+	GitCommit  = "unknown"
 	ConfigFile = ""
 
 	rootCmd = &cobra.Command{}
@@ -82,6 +82,7 @@ func init() {
 
 func Run() {
 	// TODO CMD list strategies
+
 	// TODO CMD test strategies
 
 	if err := rootCmd.Execute(); err != nil {
@@ -111,6 +112,7 @@ func initConfig() config.Configurations {
 	cfg.SetDebug(DebugMode)
 
 	// TODO viper.UnmarshalKey() dynamic strategy
+	// custom_name - strategy and params
 
 	return cfg
 }

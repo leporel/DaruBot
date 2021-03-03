@@ -74,7 +74,7 @@ func Test_checkPair(t *testing.T) {
 	}
 }
 
-func newBf(level logger.Level) (*Bitfinex, func(), error) {
+func newBf(level logger.Level) (*bitfinexWebsocket, func(), error) {
 	lg := logger.New(os.Stdout, level)
 	ctx, finish := context.WithCancel(context.Background())
 
@@ -85,7 +85,7 @@ func newBf(level logger.Level) (*Bitfinex, func(), error) {
 	return bf, finish, err
 }
 
-func startWatcher(t *testing.T, bf *Bitfinex) func() {
+func startWatcher(t *testing.T, bf *bitfinexWebsocket) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -180,7 +180,7 @@ func Test_BitfinexOrder(t *testing.T) {
 
 	newOrder := &models.PutOrder{
 		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
-		Pair:       "tTESTBTC:TESTUSD",
+		Symbol:     "tTESTBTC:TESTUSD",
 		Type:       models.OrderTypeLimit,
 		Amount:     0.001,
 		Price:      300,
@@ -267,7 +267,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 
 	newOrder := &models.PutOrder{
 		InternalID: fmt.Sprint(time.Now().Unix() / 1000),
-		Pair:       "tTESTBTC:TESTUSD",
+		Symbol:     "tTESTBTC:TESTUSD",
 		Type:       models.OrderTypeMarket,
 		Amount:     0.001,
 		Price:      0,
@@ -285,7 +285,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 		for {
 			select {
 			case pos := <-wh.Listen():
-				if pos.Payload.(models.Position).Pair == newOrder.Pair {
+				if pos.Payload.(models.Position).Symbol == newOrder.Symbol {
 					t.Logf("New position: %#v", pos)
 					return
 				}

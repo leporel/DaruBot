@@ -24,9 +24,6 @@ var (
 	EventPositionUpdate = watcher.NewEvent(EventsModuleExchange, "EventPositionUpdate", Position{})
 	EventPositionClosed = watcher.NewEvent(EventsModuleExchange, "EventPositionClosed", Position{})
 
-	EventRequestSuccess = watcher.NewEvent(EventsModuleExchange, "EventRequestSuccess", Position{})
-	EventRequestFail    = watcher.NewEvent(EventsModuleExchange, "EventRequestFail", Position{})
-
 	EventError = watcher.NewEvent(EventsModuleExchange, "EventError", (*error)(nil))
 )
 

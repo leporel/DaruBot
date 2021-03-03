@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Exchange interface {
+type CryptoExchange interface {
 	/* Network */
 	Connect() error
 	Disconnect()
@@ -17,16 +17,16 @@ type Exchange interface {
 	SupportEvents() watcher.EventsMap
 
 	/* Ticker */
-	GetTicker(pair string) (*models.Ticker, error)
-	GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error)
+	GetTicker(symbol string) (*models.Ticker, error)
+	GetCandles(symbol string, resolution models.CandleResolution, from time.Time, to time.Time) (*models.Candles, error)
 
 	GetSubscriptions() *models.Subscriptions
-	SubscribeTicker(pair string) (subID string, err error)
-	SubscribeCandles(pair string, resolution models.CandleResolution) (subID string, err error)
+	SubscribeTicker(symbol string) (subID string, err error)
+	SubscribeCandles(symbol string, resolution models.CandleResolution) (subID string, err error)
 	Unsubscribe(subID string) error
 
 	/* Tools */
-	CheckPair(pair string, margin bool) error
+	CheckSymbol(symbol string, margin bool) error
 
 	/* Data */
 	GetOrders() ([]*models.Order, error)

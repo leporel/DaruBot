@@ -3,6 +3,7 @@ package exchanges
 type ExchangeType string
 
 const (
+	ExchangeTypeMock     ExchangeType = "CryptoMock"
 	ExchangeTypeBitfinex ExchangeType = "Bitfinex"
 )
 

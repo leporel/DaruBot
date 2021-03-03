@@ -17,7 +17,7 @@ const (
 
 type PutOrder struct {
 	InternalID string
-	Pair       string
+	Symbol     string
 	Type       OrderType
 	Amount     float64
 	// Positive for buy, Negative for sell, ignoring if OrderTypeMarket
@@ -29,6 +29,7 @@ type PutOrder struct {
 
 type Order struct {
 	ID             string
+	Symbol         string
 	InternalID     string
 	Type           OrderType
 	Price          float64

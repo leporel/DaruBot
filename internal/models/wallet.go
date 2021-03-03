@@ -36,8 +36,8 @@ func (w *Wallets) Add(wallet *WalletCurrency) {
 	w.lastUpdate = time.Now()
 }
 
-func (w *Wallets) Get(currency string) *WalletCurrency {
-	wallet, ok := w.wallets.Load(currency)
+func (w *Wallets) Get(symbol string) *WalletCurrency {
+	wallet, ok := w.wallets.Load(symbol)
 
 	if !ok {
 		return nil
@@ -46,9 +46,9 @@ func (w *Wallets) Get(currency string) *WalletCurrency {
 	return wallet.(*WalletCurrency)
 }
 
-func (w *Wallets) Delete(currency string) *WalletCurrency {
+func (w *Wallets) Delete(symbol string) *WalletCurrency {
 	w.lastUpdate = time.Now()
-	wallet, ok := w.wallets.LoadAndDelete(currency)
+	wallet, ok := w.wallets.LoadAndDelete(symbol)
 
 	if !ok {
 		return nil

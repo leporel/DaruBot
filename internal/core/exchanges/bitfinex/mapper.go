@@ -13,7 +13,7 @@ import (
 	"github.com/bitfinexcom/bitfinex-api-go/pkg/models/ticker"
 )
 
-func (b *Bitfinex) convertOrder(data interface{}) *models.Order {
+func (b *bitfinexWebsocket) convertOrder(data interface{}) *models.Order {
 	o, ok := bitfinexOrderToModel(data)
 	if !ok {
 		b.log.Error(errors.Errorf("cant cast order to model %#v", data))
@@ -22,7 +22,7 @@ func (b *Bitfinex) convertOrder(data interface{}) *models.Order {
 	return o
 }
 
-func (b *Bitfinex) convertPosition(data interface{}) *models.Position {
+func (b *bitfinexWebsocket) convertPosition(data interface{}) *models.Position {
 	o, ok := bitfinexPositionToModel(data)
 	if !ok {
 		b.log.Errorf("cant cast position to model %#v", data)
@@ -31,7 +31,7 @@ func (b *Bitfinex) convertPosition(data interface{}) *models.Position {
 	return o
 }
 
-func (b *Bitfinex) convertTicker(data interface{}) *models.Ticker {
+func (b *bitfinexWebsocket) convertTicker(data interface{}) *models.Ticker {
 	o, ok := bitfinexTickerToModel(data)
 	if !ok {
 		b.log.Errorf("cant cast ticker to model %#v", data)
@@ -40,7 +40,7 @@ func (b *Bitfinex) convertTicker(data interface{}) *models.Ticker {
 	return o
 }
 
-func (b *Bitfinex) convertCandle(data *candle.Candle) *models.Candle {
+func (b *bitfinexWebsocket) convertCandle(data *candle.Candle) *models.Candle {
 	o, ok := bitfinexCandleToModel(data)
 	if !ok {
 		b.log.Errorf("cant cast candle to model %#v", data)
@@ -68,6 +68,7 @@ func bitfinexOrderToModel(or interface{}) (*models.Order, bool) {
 	rs := &models.Order{
 		ID:             fmt.Sprint(o.ID),
 		InternalID:     fmt.Sprint(o.CID),
+		Symbol:         o.Symbol,
 		Price:          o.Price,
 		PriceAvg:       o.PriceAvg,
 		AmountCurrent:  o.Amount,
@@ -118,7 +119,7 @@ func bitfinexPositionToModel(po interface{}) (*models.Position, bool) {
 
 	rs := &models.Position{
 		ID:                   fmt.Sprint(p.Id),
-		Pair:                 p.Symbol,
+		Symbol:               p.Symbol,
 		Price:                p.BasePrice,
 		Amount:               p.Amount,
 		LiqPrice:             p.LiquidationPrice,
@@ -167,7 +168,7 @@ func bitfinexTickerToModel(tk interface{}) (*models.Ticker, bool) {
 func bitfinexCandleToModel(c *candle.Candle) (*models.Candle, bool) {
 
 	rs := &models.Candle{
-		Pair:       c.Symbol,
+		Symbol:     c.Symbol,
 		Resolution: candleBitfinexResolutionToModel(c.Resolution),
 		Date:       tools.TimeFromMilliseconds(c.MTS),
 		Open:       c.Open,

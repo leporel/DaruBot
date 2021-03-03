@@ -38,8 +38,6 @@ import (
 var (
 	supportEventsBitfinex = watcher.EventsMap{
 		models.EventError,
-		models.EventRequestSuccess,
-		models.EventRequestFail,
 
 		models.EventTickerState,
 		models.EventCandleState,
@@ -56,9 +54,12 @@ var (
 
 		models.EventWalletUpdate,
 	}
+
+	eventRequestSuccess = watcher.NewEvent(models.EventsModuleExchange, "EventRequestSuccess", models.RequestResult{})
+	eventRequestFail    = watcher.NewEvent(models.EventsModuleExchange, "EventRequestFail", models.RequestResult{})
 )
 
-type Bitfinex struct {
+type bitfinexWebsocket struct {
 	ctx context.Context
 
 	ws   *websocket.Client
@@ -84,11 +85,11 @@ type Bitfinex struct {
 	watchers *watcher.Manager
 }
 
-func NewBitfinex(ctx context.Context, c config.Configurations, wManager *watcher.Manager, lg logger.Logger) (exchanges2.Exchange, error) {
+func NewBitfinex(ctx context.Context, c config.Configurations, wManager *watcher.Manager, lg logger.Logger) (exchanges2.CryptoExchange, error) {
 	return newBitfinex(ctx, c, wManager, lg)
 }
 
-func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher.Manager, lg logger.Logger) (*Bitfinex, error) {
+func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher.Manager, lg logger.Logger) (*bitfinexWebsocket, error) {
 	p := websocket.NewDefaultParameters()
 	p.ManageOrderbook = false
 	p.LogTransport = false
@@ -119,7 +120,7 @@ func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher
 		return nil, err
 	}
 
-	return &Bitfinex{
+	return &bitfinexWebsocket{
 		ctx:             ctx,
 		ws:              WebSocket,
 		rest:            REST,
@@ -137,7 +138,7 @@ func newBitfinex(ctx context.Context, c config.Configurations, wManager *watcher
 	}, nil
 }
 
-func (b *Bitfinex) Connect() error {
+func (b *bitfinexWebsocket) Connect() error {
 	if b.ready || b.ws.IsConnected() {
 		return nil
 	}
@@ -168,23 +169,23 @@ func (b *Bitfinex) Connect() error {
 	}
 }
 
-func (b *Bitfinex) Disconnect() {
+func (b *bitfinexWebsocket) Disconnect() {
 	b.disconnectChan <- struct{}{}
 }
 
-func (b *Bitfinex) IsReady() bool {
+func (b *bitfinexWebsocket) IsReady() bool {
 	return b.ready
 }
 
-func (b *Bitfinex) Ready() <-chan interface{} {
+func (b *bitfinexWebsocket) Ready() <-chan interface{} {
 	return b.readyChan
 }
 
-func (b *Bitfinex) SupportEvents() watcher.EventsMap {
+func (b *bitfinexWebsocket) SupportEvents() watcher.EventsMap {
 	return b.watchers.SupportEvents(string(exchanges.ExchangeTypeBitfinex))
 }
 
-func (b *Bitfinex) listen() {
+func (b *bitfinexWebsocket) listen() {
 	defer func() {
 		b.ready = false
 		b.ws.Close()
@@ -396,9 +397,9 @@ func (b *Bitfinex) listen() {
 				switch data.Status {
 				case "ERROR", "FAILURE":
 					b.log.Warnf("REQUEST ERROR:  %#v", data)
-					b.emmit(models.EventRequestFail, models.RequestResult{Msg: data.Text, Err: exchanges2.ErrRequestError, Meta: meta})
+					b.emmit(eventRequestFail, models.RequestResult{Msg: data.Text, Err: exchanges2.ErrRequestError, Meta: meta})
 				case "SUCCESS":
-					b.emmit(models.EventRequestSuccess, models.RequestResult{Msg: data.Text, Meta: meta})
+					b.emmit(eventRequestSuccess, models.RequestResult{Msg: data.Text, Meta: meta})
 				default:
 					b.log.Warnf("UNKNOWN NOTIFICATION:  %#v", data)
 				}
@@ -424,7 +425,7 @@ func (b *Bitfinex) listen() {
 	}
 }
 
-func (b *Bitfinex) processOrder(o *order.Order) {
+func (b *bitfinexWebsocket) processOrder(o *order.Order) {
 	if strings.Contains(o.Status, "EXECUTED") {
 		b.orders.Delete(o.ID)
 		b.emmit(models.EventOrderFilled, *b.convertOrder(o))
@@ -443,7 +444,7 @@ func (b *Bitfinex) processOrder(o *order.Order) {
 	}
 }
 
-func (b *Bitfinex) processPosition(p *position.Position) {
+func (b *bitfinexWebsocket) processPosition(p *position.Position) {
 	if p.Status != "CLOSED" {
 		b.positions.Add(p)
 		b.emmit(models.EventPositionUpdate, *b.convertPosition(p))
@@ -454,7 +455,7 @@ func (b *Bitfinex) processPosition(p *position.Position) {
 	}
 }
 
-func (b *Bitfinex) emmit(eventHead watcher.EventHead, data interface{}) {
+func (b *bitfinexWebsocket) emmit(eventHead watcher.EventHead, data interface{}) {
 	err := b.watchers.Emmit(watcher.BuildEvent(eventHead, string(exchanges.ExchangeTypeBitfinex), data))
 	if err != nil {
 		b.log.Error(err)
@@ -465,40 +466,40 @@ func (b *Bitfinex) emmit(eventHead watcher.EventHead, data interface{}) {
 	Subscribes
 */
 
-func (b *Bitfinex) SubscribeTicker(pair string) (string, error) {
-	sid, err := b.ws.SubscribeTicker(b.ctx, pair)
+func (b *bitfinexWebsocket) SubscribeTicker(symbol string) (string, error) {
+	sid, err := b.ws.SubscribeTicker(b.ctx, symbol)
 	if err != nil {
 		return "", err
 	}
 	b.subscriptions.Add(&models.Subscription{
-		ID:   sid,
-		Pair: pair,
-		Type: models.SubTypeTicker,
+		ID:     sid,
+		Symbol: symbol,
+		Type:   models.SubTypeTicker,
 	})
 	return sid, nil
 }
 
-func (b *Bitfinex) SubscribeCandles(pair string, resolution models.CandleResolution) (string, error) {
+func (b *bitfinexWebsocket) SubscribeCandles(symbol string, resolution models.CandleResolution) (string, error) {
 	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
 		return "", err
 	}
 
-	sid, err := b.ws.SubscribeCandles(b.ctx, pair, cres)
+	sid, err := b.ws.SubscribeCandles(b.ctx, symbol, cres)
 	if err != nil {
 		return "", err
 	}
 
 	b.subscriptions.Add(&models.Subscription{
-		ID:   sid,
-		Pair: pair,
-		Type: models.SubTypeCandle,
+		ID:     sid,
+		Symbol: symbol,
+		Type:   models.SubTypeCandle,
 	})
 
 	return sid, nil
 }
 
-//func (b *Bitfinex) SubscribeStatus(pair string) (string, error) {
+//func (b *Bitfinex) SubscribeStatus(symbol string) (string, error) {
 //	sid, err := b.ws.SubscribeStatus(b.ctx, "global", "liq")
 //	if err != nil {
 //		return "", err
@@ -506,20 +507,20 @@ func (b *Bitfinex) SubscribeCandles(pair string, resolution models.CandleResolut
 //
 //	b.subscriptions.Add(&models.Subscription{
 //		ID:   sid,
-//		Pair: pair,
+//		Symbol: symbol,
 //		Type: models.SubTypeCandle,
 //	})
 //
 //	return sid, nil
 //}
 
-func (b *Bitfinex) Unsubscribe(sid string) error {
+func (b *bitfinexWebsocket) Unsubscribe(sid string) error {
 	err := b.ws.Unsubscribe(b.ctx, sid)
 	b.subscriptions.Delete(sid)
 	return err
 }
 
-func (b *Bitfinex) GetSubscriptions() *models.Subscriptions {
+func (b *bitfinexWebsocket) GetSubscriptions() *models.Subscriptions {
 	return &b.subscriptions
 }
 
@@ -527,11 +528,11 @@ func (b *Bitfinex) GetSubscriptions() *models.Subscriptions {
 	Data
 */
 
-func (b *Bitfinex) HasUpdates(t time.Time) bool {
+func (b *bitfinexWebsocket) HasUpdates(t time.Time) bool {
 	return t.Before(b.lastUpdate)
 }
 
-func (b *Bitfinex) GetOrders() ([]*models.Order, error) {
+func (b *bitfinexWebsocket) GetOrders() ([]*models.Order, error) {
 	rs := make([]*models.Order, 0)
 
 	orders := b.orders.GetAll()
@@ -543,7 +544,7 @@ func (b *Bitfinex) GetOrders() ([]*models.Order, error) {
 	return rs, nil
 }
 
-func (b *Bitfinex) GetPositions() ([]*models.Position, error) {
+func (b *bitfinexWebsocket) GetPositions() ([]*models.Position, error) {
 	rs := make([]*models.Position, 0)
 
 	ps := b.positions.GetAll()
@@ -555,11 +556,11 @@ func (b *Bitfinex) GetPositions() ([]*models.Position, error) {
 	return rs, nil
 }
 
-func (b *Bitfinex) GetWallets() ([]*models.Wallets, error) {
+func (b *bitfinexWebsocket) GetWallets() ([]*models.Wallets, error) {
 	return []*models.Wallets{&b.walletsExchange, &b.walletsMargin}, nil
 }
 
-func (b *Bitfinex) updateWallet(w *wallet.Wallet) *models.WalletCurrency {
+func (b *bitfinexWebsocket) updateWallet(w *wallet.Wallet) *models.WalletCurrency {
 	wl := &models.WalletCurrency{
 		Name:      w.Currency,
 		Available: w.BalanceAvailable,
@@ -578,7 +579,7 @@ func (b *Bitfinex) updateWallet(w *wallet.Wallet) *models.WalletCurrency {
 	return wl
 }
 
-func (b *Bitfinex) GetBalance() (models.BalanceUSD, error) {
+func (b *bitfinexWebsocket) GetBalance() (models.BalanceUSD, error) {
 	return b.balance, nil
 }
 
@@ -586,8 +587,8 @@ func (b *Bitfinex) GetBalance() (models.BalanceUSD, error) {
 	Requests
 */
 
-func (b *Bitfinex) GetTicker(pair string) (*models.Ticker, error) {
-	t, err := b.rest.Tickers.Get(pair)
+func (b *bitfinexWebsocket) GetTicker(symbol string) (*models.Ticker, error) {
+	t, err := b.rest.Tickers.Get(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -595,14 +596,14 @@ func (b *Bitfinex) GetTicker(pair string) (*models.Ticker, error) {
 }
 
 // https://docs.bitfinex.com/reference#rest-public-candles
-func (b *Bitfinex) GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
+func (b *bitfinexWebsocket) GetCandles(symbol string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
 	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
 		return nil, err
 	}
 
 	cs, err := b.rest.Candles.HistoryWithQuery(
-		pair,
+		symbol,
 		cres,
 		common.Mts(tools.TimeToMilliseconds(start)),
 		common.Mts(tools.TimeToMilliseconds(end)),
@@ -614,7 +615,7 @@ func (b *Bitfinex) GetCandles(pair string, resolution models.CandleResolution, s
 	}
 
 	rs := &models.Candles{
-		Pair:       pair,
+		Symbol:     symbol,
 		Resolution: resolution,
 		Candles:    make([]*models.Candle, 0, len(cs.Snapshot)),
 	}
@@ -627,7 +628,7 @@ func (b *Bitfinex) GetCandles(pair string, resolution models.CandleResolution, s
 }
 
 // PutOrder https://docs.bitfinex.com/reference#ws-auth-input-order-new
-func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
+func (b *bitfinexWebsocket) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	if !b.ready {
 		return nil, exchanges2.ErrNoConnect
 	}
@@ -638,7 +639,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	var PriceAuxLimit float64
 	var Price = o.Price
 	var Amount = o.Amount
-	var Pair = o.Pair
+	var Pair = o.Symbol
 	var orderClientID int64
 
 	switch o.Type {
@@ -672,7 +673,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	}
 
 	if !strings.HasPrefix(Pair, "t") {
-		return nil, exchanges2.ErrPairIncorrect
+		return nil, exchanges2.ErrSymbolIncorrect
 	}
 
 	if o.InternalID != "" {
@@ -701,7 +702,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		return nil, err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", orderClientID), models.EventOrderFilled, models.EventOrderNew, models.EventRequestFail)
+	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", orderClientID), models.EventOrderFilled, models.EventOrderNew, eventRequestFail)
 	if err != nil {
 		return nil, err
 	}
@@ -714,7 +715,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Is(models.EventRequestFail):
+			case evt.Is(eventRequestFail):
 				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == o.InternalID {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
@@ -732,7 +733,7 @@ func (b *Bitfinex) PutOrder(o *models.PutOrder) (*models.Order, error) {
 	}
 }
 
-func (b *Bitfinex) CancelOrder(o *models.Order) error {
+func (b *bitfinexWebsocket) CancelOrder(o *models.Order) error {
 	if !b.ready {
 		return exchanges2.ErrNoConnect
 	}
@@ -761,7 +762,7 @@ func (b *Bitfinex) CancelOrder(o *models.Order) error {
 		return err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.ID, req.CID), models.EventOrderCancel, models.EventRequestFail)
+	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.ID, req.CID), models.EventOrderCancel, eventRequestFail)
 	if err != nil {
 		return err
 	}
@@ -774,7 +775,7 @@ func (b *Bitfinex) CancelOrder(o *models.Order) error {
 		select {
 		case evt := <-orderPipe.Listen():
 			switch {
-			case evt.Is(models.EventRequestFail):
+			case evt.Is(eventRequestFail):
 				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == o.ID || rr.Meta["order_id"] == o.InternalID {
 					return errors.WrapMessage(rr.Err, rr.Msg)
@@ -793,7 +794,7 @@ func (b *Bitfinex) CancelOrder(o *models.Order) error {
 }
 
 // UpdateOrder if price, priceStop, amount equals 0, they will be ignored
-func (b *Bitfinex) UpdateOrder(orderID string, price float64, priceStop float64, amount float64) (*models.Order, error) {
+func (b *bitfinexWebsocket) UpdateOrder(orderID string, price float64, priceStop float64, amount float64) (*models.Order, error) {
 	if !b.ready {
 		return nil, exchanges2.ErrNoConnect
 	}
@@ -855,12 +856,12 @@ func (b *Bitfinex) UpdateOrder(orderID string, price float64, priceStop float64,
 	}
 }
 
-func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
+func (b *bitfinexWebsocket) ClosePosition(p *models.Position) (*models.Position, error) {
 	if !b.ready {
 		return nil, exchanges2.ErrNoConnect
 	}
 
-	var Pair = p.Pair
+	var Pair = p.Symbol
 
 	var prevStatePos = models.Position{}
 	pos := b.positions.Get(p.GetIDAsInt())
@@ -884,7 +885,7 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		return nil, err
 	}
 
-	positionPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.CID), models.EventPositionClosed, models.EventRequestFail)
+	positionPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.CID), models.EventPositionClosed, eventRequestFail)
 	if err != nil {
 		return nil, err
 	}
@@ -897,7 +898,7 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 		select {
 		case evt := <-positionPipe.Listen():
 			switch {
-			case evt.Is(models.EventRequestFail):
+			case evt.Is(eventRequestFail):
 				rr := evt.Payload.(models.RequestResult)
 				if rr.Meta["order_id"] == fmt.Sprint(req.CID) {
 					return nil, errors.WrapMessage(rr.Err, rr.Msg)
@@ -915,18 +916,18 @@ func (b *Bitfinex) ClosePosition(p *models.Position) (*models.Position, error) {
 	}
 }
 
-func (b *Bitfinex) CheckPair(pair string, margin bool) error {
-	return checkPair(pair, margin)
+func (b *bitfinexWebsocket) CheckSymbol(symbol string, margin bool) error {
+	return checkPair(symbol, margin)
 }
 
-func checkPair(pair string, margin bool) error {
+func checkPair(symbol string, margin bool) error {
 	var pairs [][]string
 
-	if !strings.HasPrefix(pair, "t") {
-		return exchanges2.ErrPairIncorrect
+	if !strings.HasPrefix(symbol, "t") {
+		return exchanges2.ErrSymbolIncorrect
 	}
 
-	pair = strings.TrimPrefix(pair, "t")
+	symbol = strings.TrimPrefix(symbol, "t")
 
 	url := "https://api-pub.bitfinex.com/v2/conf/pub:list:pair:exchange"
 
@@ -953,10 +954,10 @@ func checkPair(pair string, margin bool) error {
 	}
 
 	for _, p := range pairs[0] {
-		if p == pair {
+		if p == symbol {
 			return nil
 		}
 	}
 
-	return exchanges2.ErrPairNotSupported
+	return exchanges2.ErrSymbolNotSupported
 }

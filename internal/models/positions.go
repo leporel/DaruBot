@@ -4,7 +4,7 @@ import "strconv"
 
 type Position struct {
 	ID                   string
-	Pair                 string
+	Symbol               string
 	Price                float64
 	Amount               float64
 	LiqPrice             float64
