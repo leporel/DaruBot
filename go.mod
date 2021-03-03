@@ -3,6 +3,8 @@ module DaruBot
 go 1.15
 
 require (
+	github.com/ReneKroon/ttlcache/v2 v2.3.0 // indirect
+	github.com/alibaba/pouch v0.0.0-20200907055328-bc5839e3c493 // indirect
 	github.com/asdine/storm/v3 v3.2.1
 	github.com/bitfinexcom/bitfinex-api-go v0.0.0-20210101155619-bb56f756df78
 	github.com/golang/protobuf v1.4.2

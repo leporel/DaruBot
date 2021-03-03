@@ -16,22 +16,22 @@ import (
 
 var (
 	supportEvents = watcher.EventsMap{
-		models.EventError, // TODO
+		//models.EventError,
 
-		models.EventTickerState, // TODO
-		models.EventCandleState, // TODO
+		//models.EventTickerState,
+		//models.EventCandleState,
 
-		models.EventOrderNew,             // TODO
-		models.EventOrderFilled,          // TODO
-		models.EventOrderCancel,          // TODO
-		models.EventOrderPartiallyFilled, // TODO
-		models.EventOrderUpdate,          // TODO
+		//models.EventOrderNew,
+		//models.EventOrderFilled,
+		//models.EventOrderCancel,
+		//models.EventOrderPartiallyFilled,
+		//models.EventOrderUpdate,
 
-		models.EventPositionNew,    // TODO
-		models.EventPositionClosed, // TODO
-		models.EventPositionUpdate, // TODO
+		//models.EventPositionNew,
+		//models.EventPositionClosed,
+		//models.EventPositionUpdate,
 
-		models.EventWalletUpdate, // TODO
+		//models.EventWalletUpdate,
 	}
 )
 
@@ -39,39 +39,10 @@ type (
 	quoteFunc = func(symbol string, startDate, endDate string, period quote.Period) (quote.Quote, error)
 )
 
-func getCandle(q *quote.Quote, t time.Time) *models.Candle {
-	if len(q.Date) == 0 {
-		return nil
-	}
-
-	if t.IsZero() {
-		var d time.Duration
-		if len(q.Date) > 1 {
-			d = q.Date[1].Sub(q.Date[0])
-		}
-		return models.QuoteToModel(q, q.Symbol, len(q.Date)-1, d)
-	}
-
-	if len(q.Date) < 2 {
-		return nil
-	}
-
-	d := q.Date[1].Sub(q.Date[0])
-
-	for i := 0; i < len(q.Date); i++ {
-		if q.Date[i].Sub(t) <= d {
-			return models.QuoteToModel(q, q.Symbol, i, d)
-		}
-	}
-
-	return nil
-}
-
 type exchange struct {
 	market    string
 	quoteFunc quoteFunc
-
-	lastUpdate time.Time
+	dio       *TheWorld
 
 	ctx context.Context
 	log logger.Logger
@@ -83,7 +54,8 @@ type exchange struct {
 	watchers *watcher.Manager
 	cache    *cache.Cache
 
-	dio *theWorld
+	lastUpdate    time.Time
+	subscriptions models.Subscriptions
 }
 
 func NewExchangeMock(ctx context.Context,
@@ -91,8 +63,8 @@ func NewExchangeMock(ctx context.Context,
 	lg logger.Logger,
 	cfg config.Configurations,
 	market string, quoteF quoteFunc,
-	from, to time.Time) (exchanges2.CryptoExchange, error) {
-	return newExchangeMock(ctx, wManager, lg, cfg, market, quoteF, from, to)
+	stand *TheWorld) (exchanges2.CryptoExchange, error) {
+	return newExchangeMock(ctx, wManager, lg, cfg, market, quoteF, stand)
 }
 
 func newExchangeMock(ctx context.Context,
@@ -100,7 +72,7 @@ func newExchangeMock(ctx context.Context,
 	lg logger.Logger,
 	cfg config.Configurations,
 	market string, quoteF quoteFunc,
-	from, to time.Time) (*exchange, error) {
+	stand *TheWorld) (*exchange, error) {
 
 	if !quote.ValidMarket(market) {
 		return nil, errors.New("market not supported")
@@ -111,7 +83,7 @@ func newExchangeMock(ctx context.Context,
 		return nil, err
 	}
 
-	c := cache.New(10*time.Minute, 15*time.Minute)
+	c := cache.New(10*time.Minute, 0)
 
 	rs := &exchange{
 		market:     market,
@@ -124,13 +96,13 @@ func newExchangeMock(ctx context.Context,
 		readyChan:  make(chan interface{}, 1),
 		watchers:   wManager,
 		cache:      c,
-		dio:        newTheWorld(from, to),
+		dio:        stand,
 	}
 
 	return rs, nil
 }
 
-func (e *exchange) getQuote(pair string, period quote.Period) (*quote.Quote, error) {
+func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, error) {
 	curTime := e.dio.CurrentTime()
 
 	key := ""
@@ -140,9 +112,9 @@ func (e *exchange) getQuote(pair string, period quote.Period) (*quote.Quote, err
 	case quote.Daily:
 		from = time.Date(e.dio.from.Year(), e.dio.from.Month(), e.dio.from.Day()-1, 0, 0, 0, 0, time.Local)
 		to = time.Date(e.dio.to.Year(), e.dio.to.Month(), e.dio.to.Day(), 23, 59, 59, 0, time.Local)
-		key = getDailyKey(e.dio.from, e.dio.to, pair)
+		key = getDailyKey(e.dio.from, e.dio.to, symbol)
 	case quote.Min1:
-		key = getMinuteKey(curTime, pair)
+		key = getMinuteKey(curTime, symbol)
 		from = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 0, 0, 0, 0, time.Local)
 		to = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 23, 59, 59, 0, time.Local)
 	default:
@@ -153,7 +125,7 @@ func (e *exchange) getQuote(pair string, period quote.Period) (*quote.Quote, err
 
 	q, found := e.cache.Get(key)
 	if !found {
-		qNew, err := e.downloadQuote(from, to, pair, period)
+		qNew, err := e.downloadQuote(from, to, symbol, period)
 		if err != nil {
 			return nil, err
 		}
@@ -163,17 +135,16 @@ func (e *exchange) getQuote(pair string, period quote.Period) (*quote.Quote, err
 		}
 
 		q = qNew
-		e.cache.Set(key, qNew, cache.DefaultExpiration)
+		e.cache.Set(key, qNew, cache.NoExpiration)
 	}
 
 	return q.(*quote.Quote), nil
 }
 
-func (e *exchange) downloadQuote(from, to time.Time, pair string, period quote.Period) (*quote.Quote, error) {
+func (e *exchange) downloadQuote(from, to time.Time, symbol string, period quote.Period) (*quote.Quote, error) {
 	start := from.UTC()
 	end := to.UTC()
-	//q, err := quote.NewQuoteFromCoinbase(pair, start.Format(timeFormat), end.Format(timeFormat), period)
-	q, err := e.quoteFunc(pair, timeString(start), timeString(end), period)
+	q, err := e.quoteFunc(symbol, quoteFormat(start), quoteFormat(end), period)
 	if err != nil {
 		return nil, err
 	}
@@ -211,14 +182,14 @@ func (e *exchange) SupportEvents() watcher.EventsMap {
 	return supportEvents
 }
 
-func (e *exchange) GetTicker(pair string) (*models.Ticker, error) {
+func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 	e.dio.TimeStop()
 	defer e.dio.TimeStart()
 	curTime := e.dio.CurrentTime()
 
-	e.log.Tracef("get ticker, time: %s (UTC %s)", timeString(curTime), timeString(curTime.UTC()))
+	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime), quoteFormat(curTime.UTC()))
 
-	qd, err := e.getQuote(pair, quote.Daily)
+	qd, err := e.getQuote(symbol, quote.Daily)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +207,7 @@ func (e *exchange) GetTicker(pair string) (*models.Ticker, error) {
 		ASKSize: candle.Volume / 2,
 	}
 
-	qm, err := e.getQuote(pair, quote.Min1)
+	qm, err := e.getQuote(symbol, quote.Min1)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +215,7 @@ func (e *exchange) GetTicker(pair string) (*models.Ticker, error) {
 	//e.log.Tracef("minute candle: %+v", candle)
 
 	ticker := &models.Ticker{
-		Pair:     pair,
+		Symbol:   symbol,
 		Price:    getRandFloat(candle.Low, candle.High),
 		Exchange: exchanges.ExchangeTypeMock,
 		State:    dayState,
@@ -255,19 +226,57 @@ func (e *exchange) GetTicker(pair string) (*models.Ticker, error) {
 	return ticker, nil
 }
 
-func (e *exchange) GetCandles(pair string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
-	panic("implement me")
+func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution, from time.Time, to time.Time) (*models.Candles, error) {
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+
+	res, err := resolution.ToQuoteModel()
+	if err != nil {
+		return nil, err
+	}
+
+	e.log.Tracef("get candles, from %s to %s", quoteFormat(from), quoteFormat(to))
+
+	if !from.IsZero() && to.After(from) {
+		q, err := e.downloadQuote(from, to, symbol, res)
+		if err != nil {
+			return nil, err
+		}
+		return models.QuoteToModels(q, symbol), nil
+	}
+
+	return nil, exchanges2.ErrInvalidRequestParams
+}
+
+func (e *exchange) GetLastCandle(symbol string, resolution models.CandleResolution) (*models.Candle, error) {
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+
+	res, err := resolution.ToQuoteModel()
+	if err != nil {
+		return nil, err
+	}
+
+	e.log.Tracef("get last candle, from %s", quoteFormat(e.dio.CurrentTime()))
+
+	q, err := e.downloadQuote(e.dio.CurrentTime().Add(-resolution.ToDuration()), e.dio.CurrentTime(), symbol, res)
+	if err != nil {
+		return nil, err
+	}
+	//e.log.Tracef("quote: %+v", q)
+
+	return models.QuoteToModel(q, symbol, len(q.Date)-1, resolution), nil
 }
 
 func (e *exchange) GetSubscriptions() *models.Subscriptions {
 	panic("implement me")
 }
 
-func (e *exchange) SubscribeTicker(pair string) (subID string, err error) {
+func (e *exchange) SubscribeTicker(symbol string) (subID string, err error) {
 	panic("implement me")
 }
 
-func (e *exchange) SubscribeCandles(pair string, resolution models.CandleResolution) (subID string, err error) {
+func (e *exchange) SubscribeCandles(symbol string, resolution models.CandleResolution) (subID string, err error) {
 	panic("implement me")
 }
 
@@ -275,13 +284,13 @@ func (e *exchange) Unsubscribe(subID string) error {
 	panic("implement me")
 }
 
-func (e *exchange) CheckSymbol(pair string, margin bool) error {
+func (e *exchange) CheckSymbol(symbol string, margin bool) error {
 	list, err := quote.NewMarketList(e.market)
 	if err != nil {
 		return err
 	}
 	for _, i2 := range list {
-		if i2 == pair {
+		if i2 == symbol {
 			return nil
 		}
 	}

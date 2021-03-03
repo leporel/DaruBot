@@ -9,22 +9,22 @@ const (
 )
 
 var (
-	EventTickerState = watcher.NewEvent(EventsModuleExchange, "EventTickerState", Ticker{})
-	EventCandleState = watcher.NewEvent(EventsModuleExchange, "EventCandleState", Candle{})
+	EventTickerState = watcher.NewEventType(EventsModuleExchange, "EventTickerState", Ticker{})
+	EventCandleState = watcher.NewEventType(EventsModuleExchange, "EventCandleState", Candle{})
 
-	EventWalletUpdate = watcher.NewEvent(EventsModuleExchange, "EventWalletUpdate", WalletCurrency{})
+	EventWalletUpdate = watcher.NewEventType(EventsModuleExchange, "EventWalletUpdate", WalletCurrency{})
 
-	EventOrderPartiallyFilled = watcher.NewEvent(EventsModuleExchange, "EventOrderPartiallyFilled", Order{})
-	EventOrderFilled          = watcher.NewEvent(EventsModuleExchange, "EventOrderFilled", Order{})
-	EventOrderNew             = watcher.NewEvent(EventsModuleExchange, "EventOrderNew", Order{})
-	EventOrderUpdate          = watcher.NewEvent(EventsModuleExchange, "EventOrderUpdate", Order{})
-	EventOrderCancel          = watcher.NewEvent(EventsModuleExchange, "EventOrderCancel", Order{})
+	EventOrderPartiallyFilled = watcher.NewEventType(EventsModuleExchange, "EventOrderPartiallyFilled", Order{})
+	EventOrderFilled          = watcher.NewEventType(EventsModuleExchange, "EventOrderFilled", Order{})
+	EventOrderNew             = watcher.NewEventType(EventsModuleExchange, "EventOrderNew", Order{})
+	EventOrderUpdate          = watcher.NewEventType(EventsModuleExchange, "EventOrderUpdate", Order{})
+	EventOrderCancel          = watcher.NewEventType(EventsModuleExchange, "EventOrderCancel", Order{})
 
-	EventPositionNew    = watcher.NewEvent(EventsModuleExchange, "EventPositionNew", Position{})
-	EventPositionUpdate = watcher.NewEvent(EventsModuleExchange, "EventPositionUpdate", Position{})
-	EventPositionClosed = watcher.NewEvent(EventsModuleExchange, "EventPositionClosed", Position{})
+	EventPositionNew    = watcher.NewEventType(EventsModuleExchange, "EventPositionNew", Position{})
+	EventPositionUpdate = watcher.NewEventType(EventsModuleExchange, "EventPositionUpdate", Position{})
+	EventPositionClosed = watcher.NewEventType(EventsModuleExchange, "EventPositionClosed", Position{})
 
-	EventError = watcher.NewEvent(EventsModuleExchange, "EventError", (*error)(nil))
+	EventError = watcher.NewEventType(EventsModuleExchange, "EventError", (*error)(nil))
 )
 
 type RequestResult struct {

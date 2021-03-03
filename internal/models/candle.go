@@ -50,7 +50,7 @@ func CandleResolutionFromString(str string) (CandleResolution, error) {
 	return OneMinute, fmt.Errorf("could not convert string to resolution: %s", str)
 }
 
-func CandleResolutionFromDuration(d time.Duration) (CandleResolution, error) {
+func candleResolutionFromDuration(d time.Duration) (CandleResolution, error) {
 	switch d {
 	case time.Minute:
 		return OneMinute, nil
@@ -72,18 +72,95 @@ func CandleResolutionFromDuration(d time.Duration) (CandleResolution, error) {
 		return OneDay, nil
 	case time.Hour * 24 * 7:
 		return OneWeek, nil
+	case time.Hour * 24 * 7 * 4:
+		return OneMonth, nil
 	}
 	return OneMinute, fmt.Errorf("could not convert duration to resolution: %s", d)
 }
 
-func QuoteToModel(q *quote.Quote, symbol string, index int, d time.Duration) *Candle {
-	res, err := CandleResolutionFromDuration(d)
-	if err != nil {
-		res = ""
+func (r *CandleResolution) ToQuoteModel() (quote.Period, error) {
+	switch *r {
+	case OneMinute:
+		return quote.Min1, nil
+	case FiveMinutes:
+		return quote.Min5, nil
+	case FifteenMinutes:
+		return quote.Min15, nil
+	case ThirtyMinutes:
+		return quote.Min30, nil
+	case OneHour:
+		return quote.Min60, nil
+	case SixHours:
+		return quote.Hour6, nil
+	case TwelveHours:
+		return quote.Hour12, nil
+	case OneDay:
+		return quote.Daily, nil
+	case OneWeek:
+		return quote.Weekly, nil
+	case OneMonth:
+		return quote.Monthly, nil
+	default:
+		return "", fmt.Errorf("period (⊙_⊙)？")
 	}
+}
+
+func (r *CandleResolution) ToDuration() time.Duration {
+	switch *r {
+	case OneMinute:
+		return time.Minute
+	case FiveMinutes:
+		return time.Minute * 5
+	case FifteenMinutes:
+		return time.Minute * 15
+	case ThirtyMinutes:
+		return time.Minute * 30
+	case OneHour:
+		return time.Hour
+	case ThreeHours:
+		return time.Hour * 3
+	case SixHours:
+		return time.Hour * 6
+	case TwelveHours:
+		return time.Hour * 12
+	case OneDay:
+		return time.Hour * 24
+	case OneWeek:
+		return time.Hour * 24 * 7
+	case OneMonth:
+		return time.Hour * 24 * 7 * 4
+	default:
+		panic("duration (⊙_⊙)？")
+	}
+}
+
+func QuoteToModels(q *quote.Quote, symbol string) *Candles {
+	var r CandleResolution
+	if len(q.Date) > 1 {
+		r, _ = candleResolutionFromDuration(q.Date[1].Sub(q.Date[0]))
+	}
+
+	rs := &Candles{
+		Symbol:     symbol,
+		Resolution: r,
+		Candles:    make([]*Candle, 0, len(q.Date)),
+	}
+
+	for i, _ := range q.Date {
+		rs.Candles = append(rs.Candles, QuoteToModel(q, symbol, i, r))
+	}
+
+	return rs
+}
+
+func QuoteToModel(q *quote.Quote, symbol string, index int, r CandleResolution) *Candle {
+	if r == "" && len(q.Date) > 1 {
+		r, _ = candleResolutionFromDuration(q.Date[1].Sub(q.Date[0]))
+	}
+
 	return &Candle{
 		Symbol:     symbol,
-		Resolution: res,
+		Resolution: r,
 		Date:       q.Date[index],
 		Open:       q.Open[index],
 		Close:      q.Close[index],
@@ -96,16 +173,18 @@ func QuoteToModel(q *quote.Quote, symbol string, index int, d time.Duration) *Ca
 type Candles struct {
 	Symbol     string
 	Resolution CandleResolution
-	Candles    []*Candle
+	// first == old
+	Candles []*Candle
 }
 
 type Candle struct {
 	Symbol     string
 	Resolution CandleResolution
-	Date       time.Time
-	Open       float64
-	Close      float64
-	High       float64
-	Low        float64
-	Volume     float64
+	// Local date
+	Date   time.Time
+	Open   float64
+	Close  float64
+	High   float64
+	Low    float64
+	Volume float64
 }

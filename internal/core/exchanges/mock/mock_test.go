@@ -30,7 +30,11 @@ func newEx(level logger.Level, from, to time.Time) (*exchange, func(), error) {
 
 	wManager := watcher.NewWatcherManager()
 
-	mk, err := newExchangeMock(ctx, wManager, lg, config.GetDefaultConfig(), market, quoteFrom, from, to)
+	stand := NewTheWorld(from, to, 1*time.Millisecond)
+
+	cfg := config.GetDefaultConfig()
+
+	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, quoteFrom, stand)
 
 	return mk, finish, err
 }
@@ -39,7 +43,7 @@ func startWatcher(t *testing.T, mk *exchange) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		wh := mk.watchers.MustNew("all_events")
+		wh := mk.watchers.MustNew("all_events", "", "")
 
 		for {
 			select {
@@ -83,4 +87,34 @@ func TestGetTicker(t *testing.T) {
 	}
 
 	litter.Dump(tk)
+}
+
+func TestGetCandles(t *testing.T) {
+	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	candles, err := mk.GetCandles(testPair, models.OneHour, time.Now().Add(-time.Hour*6), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	litter.Dump(candles)
+}
+
+func TestGetLastCandle(t *testing.T) {
+	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	candle, err := mk.GetLastCandle(testPair, models.OneHour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(candle.Date.String())
+
+	litter.Dump(candle)
 }

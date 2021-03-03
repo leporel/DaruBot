@@ -3,7 +3,7 @@ package models
 import "DaruBot/internal/models/exchanges"
 
 type Ticker struct {
-	Pair     string
+	Symbol   string
 	Price    float64
 	Exchange exchanges.ExchangeType
 	State    TickerState

@@ -39,7 +39,10 @@ func BenchmarkTypeString(b *testing.B) {
 func TestHandler(t *testing.T) {
 	m := NewWatcherManager()
 
-	wh, err := m.New("test watcher")
+	eName := "tester"
+	mName := ModuleType("module name")
+
+	wh, err := m.New("test watcher", mName, eName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +60,8 @@ func TestHandler(t *testing.T) {
 	}
 
 	err = m.Emmit(&event{
-		EventHead:  NewEvent("module type", "test event", nil),
-		ModuleName: "module name",
+		EventHead:  NewEventType(mName, "test event", nil),
+		ModuleName: eName,
 		Payload:    "meh",
 	})
 	if err != nil {

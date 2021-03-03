@@ -18,6 +18,8 @@ type CryptoExchange interface {
 
 	/* Ticker */
 	GetTicker(symbol string) (*models.Ticker, error)
+
+	GetLastCandle(symbol string, resolution models.CandleResolution) (*models.Candle, error)
 	GetCandles(symbol string, resolution models.CandleResolution, from time.Time, to time.Time) (*models.Candles, error)
 
 	GetSubscriptions() *models.Subscriptions

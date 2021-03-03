@@ -89,7 +89,7 @@ func startWatcher(t *testing.T, bf *bitfinexWebsocket) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		wh := bf.watchers.MustNew("all_events")
+		wh := bf.newWatcher("all_events")
 
 		for {
 			select {
@@ -275,7 +275,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 		Margin:     true,
 	}
 
-	wh := bf.watchers.MustNew("new_position", models.EventPositionNew, models.EventPositionUpdate)
+	wh := bf.newWatcher("new_position", models.EventPositionNew, models.EventPositionUpdate)
 	defer bf.watchers.Remove("new_position")
 
 	Timout := time.NewTimer(10 * time.Second)

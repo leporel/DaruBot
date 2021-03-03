@@ -55,8 +55,8 @@ var (
 		models.EventWalletUpdate,
 	}
 
-	eventRequestSuccess = watcher.NewEvent(models.EventsModuleExchange, "EventRequestSuccess", models.RequestResult{})
-	eventRequestFail    = watcher.NewEvent(models.EventsModuleExchange, "EventRequestFail", models.RequestResult{})
+	eventRequestSuccess = watcher.NewEventType(models.EventsModuleExchange, "EventRequestSuccess", models.RequestResult{})
+	eventRequestFail    = watcher.NewEventType(models.EventsModuleExchange, "EventRequestFail", models.RequestResult{})
 )
 
 type bitfinexWebsocket struct {
@@ -151,10 +151,7 @@ func (b *bitfinexWebsocket) Connect() error {
 
 	b.readyChan = make(chan interface{}, 1)
 
-	errorPipe, err := b.watchers.New("bf_api_errors", models.EventError)
-	if err != nil {
-		return err
-	}
+	errorPipe := b.newWatcher("bf_api_errors", models.EventError)
 	defer b.watchers.Remove("bf_api_errors")
 
 	go b.listen()
@@ -462,6 +459,10 @@ func (b *bitfinexWebsocket) emmit(eventHead watcher.EventHead, data interface{})
 	}
 }
 
+func (b *bitfinexWebsocket) newWatcher(name string, events ...watcher.EventHead) *watcher.Watcher {
+	return b.watchers.MustNew(name, models.EventsModuleExchange, exchanges.ExchangeTypeBitfinex.String(), events...)
+}
+
 /*
 	Subscribes
 */
@@ -602,29 +603,47 @@ func (b *bitfinexWebsocket) GetCandles(symbol string, resolution models.CandleRe
 		return nil, err
 	}
 
-	cs, err := b.rest.Candles.HistoryWithQuery(
-		symbol,
-		cres,
-		common.Mts(tools.TimeToMilliseconds(start)),
-		common.Mts(tools.TimeToMilliseconds(end)),
-		1000, // Max 10000
-		1,
-	)
+	if !start.IsZero() && end.After(start) {
+		cs, err := b.rest.Candles.HistoryWithQuery(
+			symbol,
+			cres,
+			common.Mts(tools.TimeToMilliseconds(start)),
+			common.Mts(tools.TimeToMilliseconds(end)),
+			1000, // Max 10000
+			1,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rs := &models.Candles{
+			Symbol:     symbol,
+			Resolution: resolution,
+			Candles:    make([]*models.Candle, 0, len(cs.Snapshot)),
+		}
+
+		for _, c := range cs.Snapshot {
+			rs.Candles = append(rs.Candles, b.convertCandle(c))
+		}
+
+		return rs, nil
+	}
+
+	return nil, exchanges2.ErrInvalidRequestParams
+}
+
+func (b *bitfinexWebsocket) GetLastCandle(symbol string, resolution models.CandleResolution) (*models.Candle, error) {
+	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
 		return nil, err
 	}
 
-	rs := &models.Candles{
-		Symbol:     symbol,
-		Resolution: resolution,
-		Candles:    make([]*models.Candle, 0, len(cs.Snapshot)),
+	c, err := b.rest.Candles.Last(symbol, cres)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, c := range cs.Snapshot {
-		rs.Candles = append(rs.Candles, b.convertCandle(c))
-	}
-
-	return rs, nil
+	return b.convertCandle(c), nil
 }
 
 // PutOrder https://docs.bitfinex.com/reference#ws-auth-input-order-new
@@ -702,10 +721,7 @@ func (b *bitfinexWebsocket) PutOrder(o *models.PutOrder) (*models.Order, error) 
 		return nil, err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", orderClientID), models.EventOrderFilled, models.EventOrderNew, eventRequestFail)
-	if err != nil {
-		return nil, err
-	}
+	orderPipe := b.newWatcher(fmt.Sprint("bf_wait_order", orderClientID), models.EventOrderFilled, models.EventOrderNew, eventRequestFail)
 	defer b.watchers.Remove(fmt.Sprint("bf_wait_order", orderClientID))
 
 	Timout := time.NewTimer(3 * time.Second)
@@ -762,10 +778,7 @@ func (b *bitfinexWebsocket) CancelOrder(o *models.Order) error {
 		return err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.ID, req.CID), models.EventOrderCancel, eventRequestFail)
-	if err != nil {
-		return err
-	}
+	orderPipe := b.newWatcher(fmt.Sprint("bf_wait_order", req.ID, req.CID), models.EventOrderCancel, eventRequestFail)
 	defer b.watchers.Remove(fmt.Sprint("bf_wait_order", req.ID, req.CID))
 
 	Timout := time.NewTimer(3 * time.Second)
@@ -830,10 +843,7 @@ func (b *bitfinexWebsocket) UpdateOrder(orderID string, price float64, priceStop
 		return nil, err
 	}
 
-	orderPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", id), models.EventOrderUpdate)
-	if err != nil {
-		return nil, err
-	}
+	orderPipe := b.newWatcher(fmt.Sprint("bf_wait_order", id), models.EventOrderUpdate)
 	defer b.watchers.Remove(fmt.Sprint("bf_wait_order", id))
 
 	Timout := time.NewTimer(3 * time.Second)
@@ -885,10 +895,7 @@ func (b *bitfinexWebsocket) ClosePosition(p *models.Position) (*models.Position,
 		return nil, err
 	}
 
-	positionPipe, err := b.watchers.New(fmt.Sprint("bf_wait_order", req.CID), models.EventPositionClosed, eventRequestFail)
-	if err != nil {
-		return nil, err
-	}
+	positionPipe := b.newWatcher(fmt.Sprint("bf_wait_order", req.CID), models.EventPositionClosed, eventRequestFail)
 	defer b.watchers.Remove(fmt.Sprint("bf_wait_order", req.CID))
 
 	Timout := time.NewTimer(3 * time.Second)

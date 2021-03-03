@@ -148,7 +148,7 @@ func bitfinexTickerToModel(tk interface{}) (*models.Ticker, bool) {
 	}
 
 	rs := &models.Ticker{
-		Pair:     t.Symbol,
+		Symbol:   t.Symbol,
 		Price:    t.LastPrice,
 		Exchange: exchanges.ExchangeTypeBitfinex,
 		State: models.TickerState{
@@ -166,7 +166,6 @@ func bitfinexTickerToModel(tk interface{}) (*models.Ticker, bool) {
 }
 
 func bitfinexCandleToModel(c *candle.Candle) (*models.Candle, bool) {
-
 	rs := &models.Candle{
 		Symbol:     c.Symbol,
 		Resolution: candleBitfinexResolutionToModel(c.Resolution),
