@@ -18,7 +18,7 @@ var (
 	//testPair = "BTC-USD" // coinbase
 	testPair = "BTCUSDT" // binance-usdt
 
-	//cryptoMarket = "coinbase"
+	//market = "coinbase"
 	//quoteFrom = quote.NewQuoteFromCoinbase
 	market    = "binance-usdt"
 	quoteFrom = quote.NewQuoteFromBinance

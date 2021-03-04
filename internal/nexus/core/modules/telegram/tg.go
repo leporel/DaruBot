@@ -5,7 +5,7 @@ import (
 	"DaruBot/pkg/logger"
 	"DaruBot/pkg/nexus"
 	"DaruBot/pkg/proxy"
-	"DaruBot/pkg/tools"
+	"DaruBot/pkg/tools/network"
 	"encoding/json"
 	"fmt"
 	tb "gopkg.in/tucnak/telebot.v2"
@@ -46,7 +46,7 @@ func NewTelegram(cfg config.Configurations, lg logger.Logger) (*TgBot, error) {
 		host := cfg.Nexus.TLS.Url
 
 		if host == "" {
-			myIP, err := tools.GetIP(nil)
+			myIP, err := network.GetIP(nil)
 			if err != nil {
 				return nil, err
 			}

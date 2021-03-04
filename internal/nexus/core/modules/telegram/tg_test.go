@@ -21,8 +21,8 @@ func newTgWh() (*TgBot, error) {
 	cfg := config.GetDefaultConfig()
 	cfg.Nexus.TLS = config.TLSCert{
 		Url:      "",
-		KeyFile:  "../../../../assets/certs/key.pem",
-		CertFile: "../../../../assets/certs/cert.pem",
+		KeyFile:  "../../../../../assets/certs/key.pem",
+		CertFile: "../../../../../assets/certs/cert.pem",
 	}
 	//config.Config.Nexus.Proxy.Addr = "94.130.73.18:1145"
 	cfg.Nexus.Modules.Telegram.WebhookMode = true
@@ -59,7 +59,7 @@ func Test_TLS(t *testing.T) {
 	http.HandleFunc("/hello", helloServer)
 
 	go func() {
-		err := http.ListenAndServeTLS(":8443", "../../../../assets/certs/cert.pem", "../../../../assets/certs/key.pem", nil)
+		err := http.ListenAndServeTLS(":8443", "../../../../../assets/certs/cert.pem", "../../../../../assets/certs/key.pem", nil)
 		if err != nil {
 			t.Fatal("ListenAndServe: ", err)
 		}
@@ -67,7 +67,7 @@ func Test_TLS(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	cert, err := ioutil.ReadFile("../../../../assets/certs/cert.pem")
+	cert, err := ioutil.ReadFile("../../../../../assets/certs/cert.pem")
 	if err != nil {
 		t.Fatalf("Couldn't load file %v", err)
 	}
@@ -110,6 +110,10 @@ func Test_TelegramWebHook(t *testing.T) {
 	defer tg.Stop()
 
 	stop := false
+	go func() {
+		time.Sleep(10 * time.Second)
+		stop = true
+	}()
 
 	tg.bot.Handle(tb.OnText, func(m *tb.Message) {
 		t.Logf("[%s] recive text: %#v", time.Now().Format("15:04:05"), m.Text)
@@ -139,6 +143,10 @@ func Test_Telegram(t *testing.T) {
 	defer tg.Stop()
 
 	stop := false
+	go func() {
+		time.Sleep(10 * time.Second)
+		stop = true
+	}()
 
 	tg.bot.Handle(tb.OnText, func(m *tb.Message) {
 		t.Logf("[%s] recive text: %#v", time.Now().Format("15:04:05"), m.Text)

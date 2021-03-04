@@ -78,6 +78,10 @@ func candleResolutionFromDuration(d time.Duration) (CandleResolution, error) {
 	return OneMinute, fmt.Errorf("could not convert duration to resolution: %s", d)
 }
 
+func (r *CandleResolution) String() string {
+	return string(*r)
+}
+
 func (r *CandleResolution) ToQuoteModel() (quote.Period, error) {
 	switch *r {
 	case OneMinute:

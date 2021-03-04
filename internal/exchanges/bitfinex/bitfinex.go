@@ -2,7 +2,7 @@ package bitfinex
 
 import (
 	"DaruBot/internal/config"
-	exchanges2 "DaruBot/internal/core/exchanges"
+	exchanges2 "DaruBot/internal/exchanges"
 	logger2 "DaruBot/internal/logger"
 	"DaruBot/internal/models"
 	"DaruBot/internal/models/exchanges"

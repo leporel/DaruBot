@@ -4,9 +4,12 @@ import (
 	"DaruBot/internal/models"
 	"fmt"
 	"github.com/markcheno/go-quote"
-	"math/rand"
 	"sync"
 	"time"
+)
+
+var (
+	timeFormat = "2006-01-02 15:04"
 )
 
 type TheWorld struct {
@@ -116,15 +119,6 @@ func getCandle(q *quote.Quote, t time.Time) *models.Candle {
 
 	return nil
 }
-
-func getRandFloat(min, max float64) float64 {
-	rand.Seed(time.Now().UnixNano())
-	n := rand.Int63n(int64(max - min))
-	r := min + float64(n)
-	return r
-}
-
-var timeFormat = "2006-01-02 15:04"
 
 func quoteFormat(t time.Time) string {
 	return t.Format(timeFormat)

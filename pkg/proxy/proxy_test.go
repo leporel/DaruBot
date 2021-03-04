@@ -1,7 +1,8 @@
 package proxy
 
 import (
-	"DaruBot/pkg/tools"
+	"DaruBot/internal/config"
+	"DaruBot/pkg/tools/network"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ func Test_ProxyEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ip, err := tools.GetIP(cli)
+	ip, err := network.GetIP(cli)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,12 +35,17 @@ func Test_ProxyError(t *testing.T) {
 }
 
 func Test_Proxy(t *testing.T) {
-	cli, err := NewProxyClient("94.130.73.18:1145")
+	cfg := config.GetDefaultConfig()
+	if cfg.Nexus.Proxy.Addr == "" {
+		t.SkipNow()
+	}
+
+	cli, err := NewProxyClient(cfg.Nexus.Proxy.Addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ip, err := tools.GetIP(cli)
+	ip, err := network.GetIP(cli)
 	if err != nil {
 		t.Fatal(err)
 	}

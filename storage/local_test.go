@@ -9,6 +9,7 @@ import (
 
 func newLS() (*localStorage, error) {
 	cfg := config.GetDefaultConfig()
+
 	cfg.Storage.Local.Path = "../test_data/storage_test.db"
 	return New(cfg)
 }
@@ -19,6 +20,7 @@ func TestStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Stop()
 
 	ss, err := s.ProvideStatsStorage()
 	if err != nil {
@@ -51,6 +53,7 @@ func TestCustomStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Stop()
 
 	cs, err := s.ProvideCustomStorage("custom1")
 	if err != nil {

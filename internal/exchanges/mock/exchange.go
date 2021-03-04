@@ -2,11 +2,12 @@ package mock
 
 import (
 	"DaruBot/internal/config"
-	exchanges2 "DaruBot/internal/core/exchanges"
+	exchanges2 "DaruBot/internal/exchanges"
 	"DaruBot/internal/models"
 	"DaruBot/internal/models/exchanges"
 	"DaruBot/pkg/errors"
 	"DaruBot/pkg/logger"
+	"DaruBot/pkg/tools/numbers"
 	"DaruBot/pkg/watcher"
 	"context"
 	"github.com/markcheno/go-quote"
@@ -102,6 +103,83 @@ func newExchangeMock(ctx context.Context,
 	return rs, nil
 }
 
+func (e *exchange) Connect() error {
+	e.ready = true
+	close(e.readyChan)
+
+	e.work()
+
+	return nil
+}
+
+func (e *exchange) work() {
+	e.dio.Run()
+
+}
+
+func (e *exchange) Disconnect() {
+	e.readyChan = make(chan interface{}, 1)
+	e.ready = false
+}
+
+func (e *exchange) IsReady() bool {
+	return e.ready
+}
+
+func (e *exchange) Ready() <-chan interface{} {
+	return e.readyChan
+}
+
+func (e *exchange) SupportEvents() watcher.EventsMap {
+	return supportEvents
+}
+
+// GetTicker download quote and return emulated ticker
+func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	curTime := e.dio.CurrentTime()
+
+	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime), quoteFormat(curTime.UTC()))
+
+	qd, err := e.getQuote(symbol, quote.Daily)
+	if err != nil {
+		return nil, err
+	}
+
+	candle := getCandle(qd, curTime)
+	//e.log.Tracef("daily candle: %+v", candle)
+
+	dayState := models.TickerState{
+		High:    candle.High,
+		Low:     candle.Low,
+		Volume:  candle.Volume,
+		BID:     500,
+		BIDSize: candle.Volume / 2,
+		ASK:     500,
+		ASKSize: candle.Volume / 2,
+	}
+
+	qm, err := e.getQuote(symbol, quote.Min1)
+	if err != nil {
+		return nil, err
+	}
+	candle = getCandle(qm, curTime)
+	//e.log.Tracef("minute candle: %+v", candle)
+
+	ticker := &models.Ticker{
+		Symbol:   symbol,
+		Price:    numbers.GetRandFloat(candle.Low, candle.High),
+		Exchange: exchanges.ExchangeTypeMock,
+		State:    dayState,
+	}
+
+	e.log.Tracef("formed ticker: %+v", ticker)
+
+	return ticker, nil
+}
+
+// getQuote function to help GetTicker to emulate the current ticker
 func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, error) {
 	curTime := e.dio.CurrentTime()
 
@@ -141,91 +219,6 @@ func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, e
 	return q.(*quote.Quote), nil
 }
 
-func (e *exchange) downloadQuote(from, to time.Time, symbol string, period quote.Period) (*quote.Quote, error) {
-	start := from.UTC()
-	end := to.UTC()
-	q, err := e.quoteFunc(symbol, quoteFormat(start), quoteFormat(end), period)
-	if err != nil {
-		return nil, err
-	}
-	return &q, nil
-}
-
-func (e *exchange) Connect() error {
-	e.ready = true
-	close(e.readyChan)
-
-	e.work()
-
-	return nil
-}
-
-func (e *exchange) work() {
-	e.dio.Run()
-
-}
-
-func (e *exchange) Disconnect() {
-	e.readyChan = make(chan interface{}, 1)
-	e.ready = false
-}
-
-func (e *exchange) IsReady() bool {
-	return e.ready
-}
-
-func (e *exchange) Ready() <-chan interface{} {
-	return e.readyChan
-}
-
-func (e *exchange) SupportEvents() watcher.EventsMap {
-	return supportEvents
-}
-
-func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
-	e.dio.TimeStop()
-	defer e.dio.TimeStart()
-	curTime := e.dio.CurrentTime()
-
-	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime), quoteFormat(curTime.UTC()))
-
-	qd, err := e.getQuote(symbol, quote.Daily)
-	if err != nil {
-		return nil, err
-	}
-
-	candle := getCandle(qd, curTime)
-	//e.log.Tracef("daily candle: %+v", candle)
-
-	dayState := models.TickerState{
-		High:    candle.High,
-		Low:     candle.Low,
-		Volume:  candle.Volume,
-		BID:     500,
-		BIDSize: candle.Volume / 2,
-		ASK:     500,
-		ASKSize: candle.Volume / 2,
-	}
-
-	qm, err := e.getQuote(symbol, quote.Min1)
-	if err != nil {
-		return nil, err
-	}
-	candle = getCandle(qm, curTime)
-	//e.log.Tracef("minute candle: %+v", candle)
-
-	ticker := &models.Ticker{
-		Symbol:   symbol,
-		Price:    getRandFloat(candle.Low, candle.High),
-		Exchange: exchanges.ExchangeTypeMock,
-		State:    dayState,
-	}
-
-	e.log.Tracef("formed ticker: %+v", ticker)
-
-	return ticker, nil
-}
-
 func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution, from time.Time, to time.Time) (*models.Candles, error) {
 	e.dio.TimeStop()
 	defer e.dio.TimeStart()
@@ -246,6 +239,16 @@ func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution,
 	}
 
 	return nil, exchanges2.ErrInvalidRequestParams
+}
+
+func (e *exchange) downloadQuote(from, to time.Time, symbol string, period quote.Period) (*quote.Quote, error) {
+	start := from.UTC()
+	end := to.UTC()
+	q, err := e.quoteFunc(symbol, quoteFormat(start), quoteFormat(end), period)
+	if err != nil {
+		return nil, err
+	}
+	return &q, nil
 }
 
 func (e *exchange) GetLastCandle(symbol string, resolution models.CandleResolution) (*models.Candle, error) {

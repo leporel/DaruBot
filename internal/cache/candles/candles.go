@@ -1,7 +1,13 @@
+/*
+Download and collects candles
+Downloaded candles will be cached and stored, if requested range are not
+represented in cache, download range and combine with existing.
+*/
 package candles
 
 import (
 	"DaruBot/internal/models"
+	"DaruBot/pkg/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/alibaba/pouch/pkg/kmutex"
@@ -9,6 +15,12 @@ import (
 	"io/ioutil"
 	"os"
 	"time"
+)
+
+var (
+	ErrWrongSort          = errors.New("Candles not sorted old > new")
+	ErrWrongCandle        = errors.New("Candles are not consistent")
+	ErrDownloadLastCandle = errors.New("Last candle not downloaded")
 )
 
 type marketCandles []*period
@@ -83,11 +95,15 @@ func (p *period) part(from, to time.Time) *models.Candles {
 }
 
 type candlesCache struct {
-	cache *cache.Cache
+	cache    *cache.Cache
+	filePath string
 }
 
-func NewCandleCache() (*candlesCache, error) {
-	f, err := os.OpenFile("./candles.cache", os.O_RDWR, 0666)
+func NewCandleCache(filePath string) (*candlesCache, error) {
+	if filePath == "" {
+		filePath = "./candles.cache"
+	}
+	f, err := os.OpenFile(filePath, os.O_RDWR, 0666)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +126,8 @@ func NewCandleCache() (*candlesCache, error) {
 	c := cache.NewFrom(cache.NoExpiration, 10*time.Minute, items)
 
 	rs := &candlesCache{
-		cache: c,
+		cache:    c,
+		filePath: filePath,
 	}
 	return rs, nil
 }
@@ -125,7 +142,7 @@ func (c *candlesCache) NewMarket(name string, loadFunc loadFunc) *marketCandlesC
 }
 
 func (c *candlesCache) SaveCache() error {
-	f, err := os.OpenFile("./candles.cache", os.O_RDWR, 0666)
+	f, err := os.OpenFile(c.filePath, os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
@@ -144,7 +161,7 @@ func (c *candlesCache) SaveCache() error {
 	return nil
 }
 
-type loadFunc func(from, to time.Time, symbol string, resolution string) (*models.Candles, error)
+type loadFunc func(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error)
 
 type marketCandlesCache struct {
 	lock       *kmutex.KMutex
@@ -153,13 +170,34 @@ type marketCandlesCache struct {
 	loaderFunc loadFunc
 }
 
-func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution string) (*models.Candles, error) {
+func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error) {
 	var hasUpdate bool
 	key := c.makeKey(symbol, resolution)
 
 	c.lock.Lock(key)
 	defer c.lock.Unlock(key)
 
+	var lastCandle *models.Candle
+
+	if time.Now().Sub(to) <= resolution.ToDuration() {
+		// Last candle requested
+		// Always download, because last candle not closed and should not be cached
+
+		candles, err := c.loaderFunc(to.Add(-resolution.ToDuration()), to, symbol, resolution)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(candles.Candles) == 0 {
+			return nil, ErrDownloadLastCandle
+		}
+
+		lastCandle = candles.Candles[len(candles.Candles)-1]
+
+		to = to.Add(-resolution.ToDuration())
+	}
+
+	// Get resolutions from stored for symbol
 	loaded, found := c.get(key)
 	if !found {
 		candles, err := c.loaderFunc(from, to, symbol, resolution)
@@ -177,6 +215,7 @@ func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution s
 	}
 	periods := loaded.(*marketCandles)
 
+	// Get range of candles
 	candles, exist := periods.get(from, to)
 	if !exist {
 		fetched, err := c.loaderFunc(from, to, symbol, resolution)
@@ -194,14 +233,22 @@ func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution s
 		hasUpdate = true
 	}
 
+	if err := VerifyCandles(candles); err != nil {
+		return nil, err
+	}
+
 	if hasUpdate {
 		c.set(key, *periods)
+	}
+
+	if lastCandle != nil {
+		candles.Candles = append(candles.Candles, lastCandle)
 	}
 
 	return candles, nil
 }
 
-func (c *marketCandlesCache) makeKey(symbol, resolution string) string {
+func (c *marketCandlesCache) makeKey(symbol string, resolution models.CandleResolution) string {
 	return fmt.Sprintf("%s_%s_%s", c.market, resolution, symbol)
 }
 
@@ -260,4 +307,18 @@ func combine(period1, period2 *period) *period {
 	}
 
 	return rs
+}
+
+func VerifyCandles(candles *models.Candles) error {
+	if len(candles.Candles) > 1 {
+		for i := 1; i < len(candles.Candles); i++ {
+			if candles.Candles[i-1].Date.After(candles.Candles[i].Date) {
+				return ErrWrongSort
+			}
+			if candles.Candles[i-1].Date.Sub(candles.Candles[i].Date) != candles.Resolution.ToDuration() {
+				return ErrWrongCandle
+			}
+		}
+	}
+	return nil
 }

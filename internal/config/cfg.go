@@ -1,7 +1,7 @@
 package config
 
 import (
-	"DaruBot/pkg/tools"
+	"DaruBot/pkg/tools/numbers"
 	"os"
 )
 
@@ -134,8 +134,8 @@ func GetDefaultConfig() Configurations {
 	cfg.Exchanges.Bitfinex.ApiSec = os.Getenv("BITFINEX_API_SEC")
 
 	cfg.Nexus.Modules.Telegram.APIKey = os.Getenv("TG_API_KEY")
-	cfg.Nexus.Modules.Telegram.GroupID = tools.StrToIntMust(os.Getenv("TG_GROUP_ID"))
-	cfg.Nexus.Modules.Telegram.UserID = tools.StrToIntMust(os.Getenv("TG_USER_ID"))
+	cfg.Nexus.Modules.Telegram.GroupID = numbers.StrToIntMust(os.Getenv("TG_GROUP_ID"))
+	cfg.Nexus.Modules.Telegram.UserID = numbers.StrToIntMust(os.Getenv("TG_USER_ID"))
 
 	cfg.Nexus.TLS.Url = os.Getenv("TLS_HOST")
 
