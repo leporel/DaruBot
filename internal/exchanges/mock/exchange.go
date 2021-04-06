@@ -140,7 +140,7 @@ func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 	defer e.dio.TimeStart()
 	curTime := e.dio.CurrentTime()
 
-	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime), quoteFormat(curTime.UTC()))
+	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime, timeFormat), quoteFormat(curTime.UTC(), timeFormat))
 
 	qd, err := e.getQuote(symbol, quote.Daily)
 	if err != nil {
@@ -186,12 +186,15 @@ func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, e
 	key := ""
 	var from, to time.Time
 
+	format := timeFormatD
+
 	switch period {
 	case quote.Daily:
 		from = time.Date(e.dio.from.Year(), e.dio.from.Month(), e.dio.from.Day()-1, 0, 0, 0, 0, time.Local)
 		to = time.Date(e.dio.to.Year(), e.dio.to.Month(), e.dio.to.Day(), 23, 59, 59, 0, time.Local)
 		key = getDailyKey(e.dio.from, e.dio.to, symbol)
 	case quote.Min1:
+		format = timeFormat
 		key = getMinuteKey(curTime, symbol)
 		from = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 0, 0, 0, 0, time.Local)
 		to = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 23, 59, 59, 0, time.Local)
@@ -201,9 +204,12 @@ func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, e
 
 	e.log.Tracef("cached quote %s", key)
 
+	start := quoteFormat(from, format)
+	end := quoteFormat(to, format)
+
 	q, found := e.cache.Get(key)
 	if !found {
-		qNew, err := e.downloadQuote(from, to, symbol, period)
+		qNew, err := e.downloadQuote(start, end, symbol, period)
 		if err != nil {
 			return nil, err
 		}
@@ -228,10 +234,18 @@ func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution,
 		return nil, err
 	}
 
-	e.log.Tracef("get candles, from %s to %s", quoteFormat(from), quoteFormat(to))
+	format := timeFormat
+	if resolution.ToDuration() >= models.OneDay.ToDuration() {
+		format = timeFormatD
+	}
+
+	start := quoteFormat(from, format)
+	end := quoteFormat(to, format)
+
+	e.log.Tracef("get candles, from %s to %s", start, end)
 
 	if !from.IsZero() && to.After(from) {
-		q, err := e.downloadQuote(from, to, symbol, res)
+		q, err := e.downloadQuote(start, end, symbol, res)
 		if err != nil {
 			return nil, err
 		}
@@ -241,10 +255,8 @@ func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution,
 	return nil, exchanges2.ErrInvalidRequestParams
 }
 
-func (e *exchange) downloadQuote(from, to time.Time, symbol string, period quote.Period) (*quote.Quote, error) {
-	start := from.UTC()
-	end := to.UTC()
-	q, err := e.quoteFunc(symbol, quoteFormat(start), quoteFormat(end), period)
+func (e *exchange) downloadQuote(from, to string, symbol string, period quote.Period) (*quote.Quote, error) {
+	q, err := e.quoteFunc(symbol, from, to, period)
 	if err != nil {
 		return nil, err
 	}
@@ -260,9 +272,17 @@ func (e *exchange) GetLastCandle(symbol string, resolution models.CandleResoluti
 		return nil, err
 	}
 
-	e.log.Tracef("get last candle, from %s", quoteFormat(e.dio.CurrentTime()))
+	format := timeFormat
+	if resolution.ToDuration() >= models.OneDay.ToDuration() {
+		format = timeFormatD
+	}
 
-	q, err := e.downloadQuote(e.dio.CurrentTime().Add(-resolution.ToDuration()), e.dio.CurrentTime(), symbol, res)
+	start := quoteFormat(e.dio.CurrentTime().Add(-resolution.ToDuration()), format)
+	end := quoteFormat(e.dio.CurrentTime(), format)
+
+	e.log.Tracef("get last candle, from %s", end)
+
+	q, err := e.downloadQuote(start, end, symbol, res)
 	if err != nil {
 		return nil, err
 	}

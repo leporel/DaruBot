@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	timeFormat = "2006-01-02 15:04"
+	timeFormat  = "2006-01-02 15:04"
+	timeFormatD = "2006-01-02"
 )
 
 type TheWorld struct {
@@ -120,8 +121,8 @@ func getCandle(q *quote.Quote, t time.Time) *models.Candle {
 	return nil
 }
 
-func quoteFormat(t time.Time) string {
-	return t.Format(timeFormat)
+func quoteFormat(t time.Time, format string) string {
+	return t.Format(format)
 }
 
 func getDailyKey(from, to time.Time, symbol string) string {
