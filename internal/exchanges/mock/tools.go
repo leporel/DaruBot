@@ -2,8 +2,6 @@ package mock
 
 import (
 	"DaruBot/internal/models"
-	"fmt"
-	"github.com/markcheno/go-quote"
 	"sync"
 	"time"
 )
@@ -97,24 +95,20 @@ func (w *TheWorld) CurrentTime() time.Time {
 	return w.from.Add(w.timePass)
 }
 
-func getCandle(q *quote.Quote, t time.Time) *models.Candle {
-	if len(q.Date) == 0 {
+func getCandle(q *models.Candles, t time.Time) *models.Candle {
+	if len(q.Candles) == 0 {
 		return nil
 	}
 
 	if t.IsZero() {
-		return models.QuoteToModel(q, q.Symbol, len(q.Date)-1, "")
+		return q.Candles[len(q.Candles)-1]
 	}
 
-	if len(q.Date) < 2 {
-		return nil
-	}
+	d := q.Resolution.ToDuration()
 
-	d := q.Date[1].Sub(q.Date[0])
-
-	for i := 0; i < len(q.Date); i++ {
-		if q.Date[i].Sub(t) <= d {
-			return models.QuoteToModel(q, q.Symbol, i, "")
+	for i := 0; i < len(q.Candles); i++ {
+		if q.Candles[i].Date.Sub(t) <= d {
+			return q.Candles[i]
 		}
 	}
 
@@ -125,10 +119,39 @@ func quoteFormat(t time.Time, format string) string {
 	return t.Format(format)
 }
 
-func getDailyKey(from, to time.Time, symbol string) string {
-	return fmt.Sprintf("%s_%s/%s_%s", models.OneDay, from.Format("2006-01-02"), to.Format("2006-01-02"), symbol)
-}
+//func getDailyKey(from, to time.Time, symbol string) string {
+//	return fmt.Sprintf("%s_%s/%s_%s", models.OneDay, from.Format("2006-01-02"), to.Format("2006-01-02"), symbol)
+//}
+//
+//func getMinuteKey(currentTime time.Time, symbol string) string {
+//	return fmt.Sprintf("%s_%s_%s", models.OneMinute, currentTime.Format("2006-01-02"), symbol)
+//}
 
-func getMinuteKey(currentTime time.Time, symbol string) string {
-	return fmt.Sprintf("%s_%s_%s", models.OneMinute, currentTime.Format("2006-01-02"), symbol)
+func downloadQuote(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error) {
+	qRes, err := resolution.ToQuoteModel()
+	if err != nil {
+		return nil, err
+	}
+
+	format := timeFormat
+	if resolution.ToDuration() >= models.OneDay.ToDuration() {
+		format = timeFormatD
+	}
+
+	start := quoteFormat(from.UTC(), format)
+	end := quoteFormat(to.UTC(), format)
+
+	q, err := downloadCandles(symbol, start, end, qRes)
+	if err != nil {
+		return nil, err
+	}
+
+	cndls := models.QuoteToModels(&q, symbol)
+
+	if len(cndls.Candles) == 1 {
+		cndls.Resolution = resolution
+		cndls.Candles[0].Resolution = resolution
+	}
+
+	return cndls, nil
 }

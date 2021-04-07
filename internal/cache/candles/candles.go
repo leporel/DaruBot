@@ -33,7 +33,7 @@ type period struct {
 	Candles *models.Candles
 }
 
-type candlesCache struct {
+type Cache struct {
 	cache    *cache.Cache
 	filePath string
 	lg       logger.Logger
@@ -43,7 +43,7 @@ type marketCandles struct {
 	Periods []*period
 }
 
-type marketCandlesCache struct {
+type MarketCandlesCache struct {
 	lock       *kmutex.KMutex
 	cache      *cache.Cache
 	market     string
@@ -53,17 +53,17 @@ type marketCandlesCache struct {
 
 type cacheCollection struct {
 	Version string
-	Items   map[string]Item
+	Items   map[string]item
 }
 
-type Item struct {
+type item struct {
 	Object     *marketCandles
 	Expiration int64
 }
 
 type loadFunc func(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error)
 
-func NewCandleCache(filePath string, lg logger.Logger) (*candlesCache, error) {
+func NewCandleCache(filePath string, lg logger.Logger) (*Cache, error) {
 	if filePath == "" {
 		return nil, fmt.Errorf("filePath empty")
 	}
@@ -83,7 +83,7 @@ func NewCandleCache(filePath string, lg logger.Logger) (*candlesCache, error) {
 		Items:   nil,
 	}
 
-	data.Items = make(map[string]Item)
+	data.Items = make(map[string]item)
 
 	if len(raw) != 0 {
 		err = json.Unmarshal(raw, &data)
@@ -108,7 +108,7 @@ func NewCandleCache(filePath string, lg logger.Logger) (*candlesCache, error) {
 	log := lg.WithPrefix("module", "candles cache")
 	c := cache.NewFrom(cache.NoExpiration, 10*time.Minute, cItems)
 
-	rs := &candlesCache{
+	rs := &Cache{
 		cache:    c,
 		filePath: filePath,
 		lg:       log,
@@ -119,7 +119,7 @@ func NewCandleCache(filePath string, lg logger.Logger) (*candlesCache, error) {
 	return rs, nil
 }
 
-func (c *candlesCache) SaveCache() error {
+func (c *Cache) SaveCache() error {
 	f, err := os.OpenFile(c.filePath, os.O_RDWR, 0666)
 	if err != nil {
 		return err
@@ -133,12 +133,12 @@ func (c *candlesCache) SaveCache() error {
 		Items:   nil,
 	}
 
-	data.Items = make(map[string]Item, len(items))
+	data.Items = make(map[string]item, len(items))
 
-	for s, item := range items {
-		data.Items[s] = Item{
-			Object:     item.Object.(*marketCandles),
-			Expiration: item.Expiration,
+	for s, it := range items {
+		data.Items[s] = item{
+			Object:     it.Object.(*marketCandles),
+			Expiration: it.Expiration,
 		}
 	}
 
@@ -157,9 +157,9 @@ func (c *candlesCache) SaveCache() error {
 	return nil
 }
 
-func (c *candlesCache) GetMarket(name string, loadFunc loadFunc) *marketCandlesCache {
+func (c *Cache) GetMarket(name string, loadFunc loadFunc) *MarketCandlesCache {
 	c.lg.Debug("cache get market", name)
-	return &marketCandlesCache{
+	return &MarketCandlesCache{
 		cache:      c.cache,
 		market:     name,
 		lock:       kmutex.New(),
@@ -168,7 +168,7 @@ func (c *candlesCache) GetMarket(name string, loadFunc loadFunc) *marketCandlesC
 	}
 }
 
-func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error) {
+func (c *MarketCandlesCache) Get(from, to time.Time, symbol string, resolution models.CandleResolution) (*models.Candles, error) {
 	c.lg.Tracef("get candles [%s-%s] %s - %s", c.market, symbol, from.Format(time.RFC822Z), to.Format(time.RFC822Z))
 	var rs *models.Candles
 	var hasUpdate bool
@@ -211,8 +211,6 @@ func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution m
 		loaded = &marketCandles{
 			Periods: []*period{},
 		}
-
-		hasUpdate = true
 	} else {
 		c.lg.Trace("cached candles for this market found")
 	}
@@ -236,11 +234,14 @@ func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution m
 			From:    candles.Candles[0].Date,
 			Candles: candles,
 		}
+
 		collection.add(pd)
 
 		rs = pd.part(start, end)
 
-		hasUpdate = true
+		if len(pd.Candles.Candles) > 0 {
+			hasUpdate = true
+		}
 	} else {
 		rs = candles
 		c.lg.Trace("cached candles for this periods found")
@@ -263,15 +264,15 @@ func (c *marketCandlesCache) Get(from, to time.Time, symbol string, resolution m
 	return rs, nil
 }
 
-func (c *marketCandlesCache) makeKey(symbol string, resolution models.CandleResolution) string {
+func (c *MarketCandlesCache) makeKey(symbol string, resolution models.CandleResolution) string {
 	return fmt.Sprintf("%s_%s_%s", c.market, resolution, symbol)
 }
 
-func (c *marketCandlesCache) load(key string) (interface{}, bool) {
+func (c *MarketCandlesCache) load(key string) (interface{}, bool) {
 	return c.cache.Get(key)
 }
 
-func (c *marketCandlesCache) set(key string, m *marketCandles) {
+func (c *MarketCandlesCache) set(key string, m *marketCandles) {
 	c.cache.Set(key, m, cache.NoExpiration)
 }
 
@@ -389,7 +390,7 @@ func combine(period1, period2 *period) *period {
 	return rs
 }
 
-func (c *marketCandlesCache) VerifyCandles(candles *models.Candles) error {
+func (c *MarketCandlesCache) VerifyCandles(candles *models.Candles) error {
 	if len(candles.Candles) > 1 {
 		for i := 1; i < len(candles.Candles); i++ {
 			if candles.Candles[i-1].Date.After(candles.Candles[i].Date) {

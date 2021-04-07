@@ -54,7 +54,7 @@ func downloadQuote(from, to time.Time, symbol string, resolution models.CandleRe
 	return models.QuoteToModels(&q, symbol), nil
 }
 
-func newCache(t *testing.T) *candlesCache {
+func newCache(t *testing.T) *Cache {
 	writer := os.Stdout
 	lg := logger.New(writer, logger.TraceLevel)
 

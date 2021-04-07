@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"DaruBot/internal/cache/candles"
 	"DaruBot/internal/config"
 	exchanges2 "DaruBot/internal/exchanges"
 	"DaruBot/internal/models"
@@ -11,11 +12,12 @@ import (
 	"DaruBot/pkg/watcher"
 	"context"
 	"github.com/markcheno/go-quote"
-	"github.com/patrickmn/go-cache"
 	"time"
 )
 
 var (
+	downloadCandles quoteFunc
+
 	supportEvents = watcher.EventsMap{
 		//models.EventError,
 
@@ -52,8 +54,8 @@ type exchange struct {
 	ready     bool
 	readyChan chan interface{}
 
-	watchers *watcher.Manager
-	cache    *cache.Cache
+	watchers     *watcher.Manager
+	cacheCandles *candles.MarketCandlesCache
 
 	lastUpdate    time.Time
 	subscriptions models.Subscriptions
@@ -63,16 +65,17 @@ func NewExchangeMock(ctx context.Context,
 	wManager *watcher.Manager,
 	lg logger.Logger,
 	cfg config.Configurations,
-	market string, quoteF quoteFunc,
+	market string, candlesCache *candles.Cache, quoteF quoteFunc,
 	stand *TheWorld) (exchanges2.CryptoExchange, error) {
-	return newExchangeMock(ctx, wManager, lg, cfg, market, quoteF, stand)
+	downloadCandles = quoteF
+	return newExchangeMock(ctx, wManager, lg, cfg, market, candlesCache, stand)
 }
 
 func newExchangeMock(ctx context.Context,
 	wManager *watcher.Manager,
 	lg logger.Logger,
 	cfg config.Configurations,
-	market string, quoteF quoteFunc,
+	market string, candlesCache *candles.Cache,
 	stand *TheWorld) (*exchange, error) {
 
 	if !quote.ValidMarket(market) {
@@ -84,20 +87,19 @@ func newExchangeMock(ctx context.Context,
 		return nil, err
 	}
 
-	c := cache.New(10*time.Minute, 0)
+	mc := candlesCache.GetMarket(market, downloadQuote)
 
 	rs := &exchange{
-		market:     market,
-		quoteFunc:  quoteF,
-		lastUpdate: time.Time{},
-		ctx:        ctx,
-		log:        lg.WithPrefix("exchange", "Mock"),
-		cfg:        cfg,
-		ready:      false,
-		readyChan:  make(chan interface{}, 1),
-		watchers:   wManager,
-		cache:      c,
-		dio:        stand,
+		market:       market,
+		lastUpdate:   time.Time{},
+		ctx:          ctx,
+		log:          lg.WithPrefix("exchange", "Mock"),
+		cfg:          cfg,
+		ready:        false,
+		readyChan:    make(chan interface{}, 1),
+		watchers:     wManager,
+		cacheCandles: mc,
+		dio:          stand,
 	}
 
 	return rs, nil
@@ -142,12 +144,11 @@ func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 
 	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime, timeFormat), quoteFormat(curTime.UTC(), timeFormat))
 
-	qd, err := e.getQuote(symbol, quote.Daily)
+	candle, err := e.getCandle(symbol, models.OneDay, curTime)
 	if err != nil {
 		return nil, err
 	}
 
-	candle := getCandle(qd, curTime)
 	//e.log.Tracef("daily candle: %+v", candle)
 
 	dayState := models.TickerState{
@@ -160,11 +161,11 @@ func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 		ASKSize: candle.Volume / 2,
 	}
 
-	qm, err := e.getQuote(symbol, quote.Min1)
+	candle, err = e.getCandle(symbol, models.OneMinute, curTime)
 	if err != nil {
 		return nil, err
 	}
-	candle = getCandle(qm, curTime)
+
 	//e.log.Tracef("minute candle: %+v", candle)
 
 	ticker := &models.Ticker{
@@ -179,116 +180,67 @@ func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 	return ticker, nil
 }
 
-// getQuote function to help GetTicker to emulate the current ticker
-func (e *exchange) getQuote(symbol string, period quote.Period) (*quote.Quote, error) {
-	curTime := e.dio.CurrentTime()
-
-	key := ""
+// getCandle function to help GetTicker to emulate the current ticker
+func (e *exchange) getCandle(symbol string, res models.CandleResolution, dioTime time.Time) (*models.Candle, error) {
 	var from, to time.Time
 
-	format := timeFormatD
-
-	switch period {
-	case quote.Daily:
-		from = time.Date(e.dio.from.Year(), e.dio.from.Month(), e.dio.from.Day()-1, 0, 0, 0, 0, time.Local)
-		to = time.Date(e.dio.to.Year(), e.dio.to.Month(), e.dio.to.Day(), 23, 59, 59, 0, time.Local)
-		key = getDailyKey(e.dio.from, e.dio.to, symbol)
-	case quote.Min1:
-		format = timeFormat
-		key = getMinuteKey(curTime, symbol)
-		from = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 0, 0, 0, 0, time.Local)
-		to = time.Date(curTime.Year(), curTime.Month(), curTime.Day(), 23, 59, 59, 0, time.Local)
+	switch res {
+	case models.OneDay:
+		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day()-5, 0, 0, 0, 0, time.Local)
+		to = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), 23, 59, 59, 0, time.Local)
+	case models.OneMinute:
+		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), dioTime.Hour(), dioTime.Minute()-5, 0, 0, time.Local)
+		to = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), dioTime.Hour(), dioTime.Minute()+5, 59, 0, time.Local)
 	default:
 		return nil, errors.New("period not set")
 	}
 
-	e.log.Tracef("cached quote %s", key)
-
-	start := quoteFormat(from, format)
-	end := quoteFormat(to, format)
-
-	q, found := e.cache.Get(key)
-	if !found {
-		qNew, err := e.downloadQuote(start, end, symbol, period)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(qNew.Low) == 0 {
-			return nil, errors.New("cant get quote")
-		}
-
-		q = qNew
-		e.cache.Set(key, qNew, cache.NoExpiration)
+	cndls, err := e.cacheCandles.Get(from, to, symbol, res)
+	if err != nil {
+		return nil, err
 	}
 
-	return q.(*quote.Quote), nil
+	cndl := getCandle(cndls, dioTime)
+
+	return cndl, nil
 }
 
 func (e *exchange) GetCandles(symbol string, resolution models.CandleResolution, from time.Time, to time.Time) (*models.Candles, error) {
 	e.dio.TimeStop()
 	defer e.dio.TimeStart()
 
-	res, err := resolution.ToQuoteModel()
-	if err != nil {
-		return nil, err
-	}
-
-	format := timeFormat
-	if resolution.ToDuration() >= models.OneDay.ToDuration() {
-		format = timeFormatD
-	}
-
-	start := quoteFormat(from, format)
-	end := quoteFormat(to, format)
-
-	e.log.Tracef("get candles, from %s to %s", start, end)
+	e.log.Tracef("get candles, from %s to %s", from, to)
 
 	if !from.IsZero() && to.After(from) {
-		q, err := e.downloadQuote(start, end, symbol, res)
+		cndls, err := e.cacheCandles.Get(from, to, symbol, resolution)
 		if err != nil {
 			return nil, err
 		}
-		return models.QuoteToModels(q, symbol), nil
+		return cndls, nil
 	}
 
 	return nil, exchanges2.ErrInvalidRequestParams
-}
-
-func (e *exchange) downloadQuote(from, to string, symbol string, period quote.Period) (*quote.Quote, error) {
-	q, err := e.quoteFunc(symbol, from, to, period)
-	if err != nil {
-		return nil, err
-	}
-	return &q, nil
 }
 
 func (e *exchange) GetLastCandle(symbol string, resolution models.CandleResolution) (*models.Candle, error) {
 	e.dio.TimeStop()
 	defer e.dio.TimeStart()
 
-	res, err := resolution.ToQuoteModel()
+	start := e.dio.CurrentTime().Add(-resolution.ToDuration())
+	end := e.dio.CurrentTime()
+
+	//e.log.Tracef("get last candle, from %s", end)
+
+	cndls, err := e.cacheCandles.Get(start, end, symbol, resolution)
 	if err != nil {
 		return nil, err
 	}
 
-	format := timeFormat
-	if resolution.ToDuration() >= models.OneDay.ToDuration() {
-		format = timeFormatD
-	}
+	cnld := cndls.Candles[len(cndls.Candles)-1]
 
-	start := quoteFormat(e.dio.CurrentTime().Add(-resolution.ToDuration()), format)
-	end := quoteFormat(e.dio.CurrentTime(), format)
+	e.log.Tracef("get last candle, time %s \n last candle: %s", end.Format(time.RFC822Z), cnld.Date.Format(time.RFC822Z))
 
-	e.log.Tracef("get last candle, from %s", end)
-
-	q, err := e.downloadQuote(start, end, symbol, res)
-	if err != nil {
-		return nil, err
-	}
-	//e.log.Tracef("quote: %+v", q)
-
-	return models.QuoteToModel(q, symbol, len(q.Date)-1, resolution), nil
+	return cnld, nil
 }
 
 func (e *exchange) GetSubscriptions() *models.Subscriptions {

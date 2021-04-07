@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"DaruBot/internal/cache/candles"
 	"DaruBot/internal/config"
 	"DaruBot/internal/models"
 	"DaruBot/pkg/logger"
@@ -24,7 +25,29 @@ var (
 	quoteFrom = quote.NewQuoteFromBinance
 )
 
-func newEx(level logger.Level, from, to time.Time) (*exchange, func(), error) {
+type cacheCandle struct {
+	cache *candles.Cache
+}
+
+func newCacheCandles(t *testing.T, lg logger.Logger) *cacheCandle {
+	candlesCache, err := candles.NewCandleCache("../../../test_data/candles.cache", lg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return &cacheCandle{
+		candlesCache,
+	}
+}
+
+func (c *cacheCandle) Stop() {
+	err := c.cache.SaveCache()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func newEx(t *testing.T, level logger.Level, from, to time.Time) (*exchange, func(), error) {
 	lg := logger.New(os.Stdout, level)
 	ctx, finish := context.WithCancel(context.Background())
 
@@ -34,9 +57,18 @@ func newEx(level logger.Level, from, to time.Time) (*exchange, func(), error) {
 
 	cfg := config.GetDefaultConfig()
 
-	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, quoteFrom, stand)
+	downloadCandles = quoteFrom
 
-	return mk, finish, err
+	cache := newCacheCandles(t, lg)
+
+	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, cache.cache, stand)
+
+	stop := func() {
+		finish()
+		cache.Stop()
+	}
+
+	return mk, stop, err
 }
 
 func startWatcher(t *testing.T, mk *exchange) func() {
@@ -64,7 +96,7 @@ func startWatcher(t *testing.T, mk *exchange) func() {
 }
 
 func TestCheckPair(t *testing.T) {
-	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, _, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,10 +108,11 @@ func TestCheckPair(t *testing.T) {
 }
 
 func TestGetTicker(t *testing.T) {
-	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer stop()
 
 	tk, err := mk.GetTicker(testPair)
 	if err != nil {
@@ -90,24 +123,26 @@ func TestGetTicker(t *testing.T) {
 }
 
 func TestGetCandles(t *testing.T) {
-	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	cndls, err := mk.GetCandles(testPair, models.OneHour, time.Now().Add(-time.Hour*6), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	candles, err := mk.GetCandles(testPair, models.OneHour, time.Now().Add(-time.Hour*6), time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	litter.Dump(candles)
+	litter.Dump(cndls)
 }
 
 func TestGetLastCandle(t *testing.T) {
-	mk, _, err := newEx(logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer stop()
 
 	candle, err := mk.GetLastCandle(testPair, models.OneHour)
 	if err != nil {
