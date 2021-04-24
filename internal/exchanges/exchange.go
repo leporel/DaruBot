@@ -34,7 +34,7 @@ type CryptoExchange interface {
 	GetOrders() ([]*models.Order, error)
 	GetPositions() ([]*models.Position, error)
 	GetWallets() ([]*models.Wallets, error)
-	GetBalance() (models.BalanceUSD, error)
+	GetBalance() (*models.BalanceUSD, error)
 	HasUpdates(t time.Time) bool
 
 	/* Requests */

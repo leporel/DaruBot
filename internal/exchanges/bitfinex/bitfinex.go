@@ -55,6 +55,7 @@ var (
 		models.EventWalletUpdate,
 	}
 
+	// this are not external event, used for Bitfinex implementation
 	eventRequestSuccess = watcher.NewEventType(models.EventsModuleExchange, "EventRequestSuccess", models.RequestResult{})
 	eventRequestFail    = watcher.NewEventType(models.EventsModuleExchange, "EventRequestFail", models.RequestResult{})
 )
@@ -351,13 +352,13 @@ func (b *bitfinexWebsocket) listen() {
 				b.log.Debugf("CANDLE SNAPSHOT:  %#v", data)
 
 				for _, c := range data.Snapshot {
-					b.emmit(models.EventTickerState, *b.convertCandle(c))
+					b.emmit(models.EventCandleState, *b.convertCandle(c))
 				}
 
 			case *candle.Candle:
 				b.log.Debugf("CANDLE:  %#v", data)
 
-				b.emmit(models.EventTickerState, *b.convertCandle(data))
+				b.emmit(models.EventCandleState, *b.convertCandle(data))
 
 			case *notification.Notification:
 				b.log.Debugf("NOTIFICATION NEW:  %#v", data)
@@ -506,7 +507,7 @@ func (b *bitfinexWebsocket) SubscribeCandles(symbol string, resolution models.Ca
 //		return "", err
 //	}
 //
-//	b.subscriptions.Add(&models.Subscription{
+//	b.subscriptions.Update(&models.Subscription{
 //		ID:   sid,
 //		Symbol: symbol,
 //		Type: models.SubTypeCandle,
@@ -558,7 +559,31 @@ func (b *bitfinexWebsocket) GetPositions() ([]*models.Position, error) {
 }
 
 func (b *bitfinexWebsocket) GetWallets() ([]*models.Wallets, error) {
-	return []*models.Wallets{&b.walletsExchange, &b.walletsMargin}, nil
+	rs := make([]*models.Wallets, 0)
+
+	wE := models.Wallets{
+		WalletType: b.walletsExchange.WalletType,
+	}
+
+	for _, currency := range b.walletsExchange.GetAll() {
+		cur := *currency
+		wE.Update(&cur)
+	}
+
+	rs = append(rs, &wE)
+
+	wM := models.Wallets{
+		WalletType: b.walletsMargin.WalletType,
+	}
+
+	for _, currency := range b.walletsMargin.GetAll() {
+		cur := *currency
+		wM.Update(&cur)
+	}
+
+	rs = append(rs, &wM)
+
+	return rs, nil
 }
 
 func (b *bitfinexWebsocket) updateWallet(w *wallet.Wallet) *models.WalletCurrency {
@@ -571,17 +596,18 @@ func (b *bitfinexWebsocket) updateWallet(w *wallet.Wallet) *models.WalletCurrenc
 	switch w.Type {
 	case "exchange":
 		wl.WalletType = models.WalletTypeExchange
-		b.walletsExchange.Add(wl)
+		b.walletsExchange.Update(wl)
 	case "margin":
 		wl.WalletType = models.WalletTypeMargin
-		b.walletsMargin.Add(wl)
+		b.walletsMargin.Update(wl)
 	}
 
 	return wl
 }
 
-func (b *bitfinexWebsocket) GetBalance() (models.BalanceUSD, error) {
-	return b.balance, nil
+func (b *bitfinexWebsocket) GetBalance() (*models.BalanceUSD, error) {
+	rs := b.balance
+	return &rs, nil
 }
 
 /*
@@ -596,7 +622,7 @@ func (b *bitfinexWebsocket) GetTicker(symbol string) (*models.Ticker, error) {
 	return b.convertTicker(t), nil
 }
 
-// https://docs.bitfinex.com/reference#rest-public-candles
+// GetCandles https://docs.bitfinex.com/reference#rest-public-candles
 func (b *bitfinexWebsocket) GetCandles(symbol string, resolution models.CandleResolution, start time.Time, end time.Time) (*models.Candles, error) {
 	cres, err := candleResolutionToBitfinex(resolution)
 	if err != nil {
@@ -806,7 +832,7 @@ func (b *bitfinexWebsocket) CancelOrder(o *models.Order) error {
 	}
 }
 
-// UpdateOrder if price, priceStop, amount equals 0, they will be ignored
+// UpdateOrder if price, priceStop and amount equals 0 - request do nothing
 func (b *bitfinexWebsocket) UpdateOrder(orderID string, price float64, priceStop float64, amount float64) (*models.Order, error) {
 	if !b.ready {
 		return nil, exchanges2.ErrNoConnect

@@ -94,14 +94,14 @@ func newBf(level logger.Level, t *testing.T) (*bitfinexWebsocket, func(), error)
 func startWatcher(t *testing.T, bf *bitfinexWebsocket) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go func() {
+	go func(tt *testing.T) {
 		wh := bf.newWatcher("all_events")
 
 		for {
 			select {
 			case evt := <-wh.Listen():
 				if evt.Is(models.EventError) {
-					t.Fatalf("error: %v", evt.Payload)
+					tt.Fatalf("error: %v", evt.Payload)
 				}
 				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Head), evt.Head, evt.Payload)
 				fmt.Printf("event: %v(%v), payload: [%#v] \n", evt.GetModuleType(), evt.GetEventName(), evt.Payload)
@@ -110,7 +110,7 @@ func startWatcher(t *testing.T, bf *bitfinexWebsocket) func() {
 				return
 			}
 		}
-	}()
+	}(t)
 
 	return cancel
 }
@@ -287,7 +287,7 @@ func Test_BitfinexTestPosition(t *testing.T) {
 	Timout := time.NewTimer(10 * time.Second)
 	defer Timout.Stop()
 
-	go func() {
+	go func(tt *testing.T) {
 		for {
 			select {
 			case pos := <-wh.Listen():
@@ -296,10 +296,10 @@ func Test_BitfinexTestPosition(t *testing.T) {
 					return
 				}
 			case <-Timout.C:
-				t.Fatalf("wait new position time out")
+				tt.Fatalf("wait new position time out")
 			}
 		}
-	}()
+	}(t)
 
 	order, err := bf.PutOrder(newOrder)
 	if err != nil {

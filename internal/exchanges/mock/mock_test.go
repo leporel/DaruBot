@@ -18,6 +18,7 @@ import (
 var (
 	//testPair = "BTC-USD" // coinbase
 	testPair = "BTCUSDT" // binance-usdt
+	currency = "USDT"
 
 	//market = "coinbase"
 	//quoteFrom = quote.NewQuoteFromCoinbase
@@ -47,7 +48,28 @@ func (c *cacheCandle) Stop() {
 	}
 }
 
-func newEx(t *testing.T, level logger.Level, from, to time.Time) (*exchange, func(), error) {
+func newPlutos(w *models.Wallets) *Plutos {
+	ors := make([]models.Order, 0)
+	pos := make([]models.Position, 0)
+
+	if w == nil {
+		w = &models.Wallets{}
+		w.WalletType = models.WalletTypeNone
+		wCur := &models.WalletCurrency{
+			Name:       currency,
+			WalletType: models.WalletTypeNone,
+			Balance:    1000,
+		}
+		if len(pos) == 0 && len(ors) == 0 {
+			wCur.Available = wCur.Balance
+		}
+		w.Update(wCur)
+	}
+
+	return NewPlutos(5, 0.2, currency, w, ors, pos)
+}
+
+func newEx(t *testing.T, level logger.Level, from, to time.Time, p *Plutos) (*exchange, func(), error) {
 	lg := logger.New(os.Stdout, level)
 	ctx, finish := context.WithCancel(context.Background())
 
@@ -61,7 +83,12 @@ func newEx(t *testing.T, level logger.Level, from, to time.Time) (*exchange, fun
 
 	cache := newCacheCandles(t, lg)
 
-	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, cache.cache, stand)
+	if p == nil {
+		p = newPlutos(nil)
+	}
+
+	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, cache.cache, stand, p)
+	p.SetTickerFunc(mk.getTicker)
 
 	stop := func() {
 		finish()
@@ -74,14 +101,14 @@ func newEx(t *testing.T, level logger.Level, from, to time.Time) (*exchange, fun
 func startWatcher(t *testing.T, mk *exchange) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go func() {
+	go func(tt *testing.T) {
 		wh := mk.watchers.MustNew("all_events", "", "")
 
 		for {
 			select {
 			case evt := <-wh.Listen():
 				if evt.Is(models.EventError) {
-					t.Fatalf("error: %v", evt.Payload)
+					tt.Fatalf("error: %v", evt.Payload)
 				}
 				//t.Logf("event type: %v(%v), payload: [%#v] \n", EventToString(evt.Head), evt.Head, evt.Payload)
 				fmt.Printf("event: %v(%v), payload: [%#v] \n", evt.GetModuleType(), evt.GetEventName(), evt.Payload)
@@ -90,13 +117,13 @@ func startWatcher(t *testing.T, mk *exchange) func() {
 				return
 			}
 		}
-	}()
+	}(t)
 
 	return cancel
 }
 
 func TestCheckPair(t *testing.T) {
-	mk, _, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, _, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +135,7 @@ func TestCheckPair(t *testing.T) {
 }
 
 func TestGetTicker(t *testing.T) {
-	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +150,7 @@ func TestGetTicker(t *testing.T) {
 }
 
 func TestGetCandles(t *testing.T) {
-	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +165,7 @@ func TestGetCandles(t *testing.T) {
 }
 
 func TestGetLastCandle(t *testing.T) {
-	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now())
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,4 +179,38 @@ func TestGetLastCandle(t *testing.T) {
 	t.Log(candle.Date.String())
 
 	litter.Dump(candle)
+}
+
+func TestGetBalance(t *testing.T) {
+	w := &models.Wallets{}
+	w.WalletType = models.WalletTypeNone
+	w.Update(&models.WalletCurrency{
+		Name:       currency,
+		WalletType: models.WalletTypeNone,
+		Balance:    1000,
+		Available:  1000,
+	})
+	w.Update(&models.WalletCurrency{
+		Name:       "BTC",
+		WalletType: models.WalletTypeNone,
+		Balance:    0.003,
+		Available:  0.003,
+	})
+
+	p := newPlutos(w)
+
+	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	balance, err := mk.GetBalance()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(balance)
+
+	litter.Dump(balance)
 }

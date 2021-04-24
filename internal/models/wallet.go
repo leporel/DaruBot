@@ -6,8 +6,8 @@ import (
 )
 
 type BalanceUSD struct {
-	Total    float64
-	NetWorth float64
+	Total    float64 // available usd
+	NetWorth float64 // all stock and positions worth in usd and available usd
 }
 
 type WalletType uint8
@@ -31,13 +31,13 @@ type Wallets struct {
 	lastUpdate time.Time
 }
 
-func (w *Wallets) Add(wallet *WalletCurrency) {
+func (w *Wallets) Update(wallet *WalletCurrency) {
 	w.wallets.Store(wallet.Name, wallet)
 	w.lastUpdate = time.Now()
 }
 
-func (w *Wallets) Get(symbol string) *WalletCurrency {
-	wallet, ok := w.wallets.Load(symbol)
+func (w *Wallets) Get(currencyName string) *WalletCurrency {
+	wallet, ok := w.wallets.Load(currencyName)
 
 	if !ok {
 		return nil
@@ -46,9 +46,9 @@ func (w *Wallets) Get(symbol string) *WalletCurrency {
 	return wallet.(*WalletCurrency)
 }
 
-func (w *Wallets) Delete(symbol string) *WalletCurrency {
+func (w *Wallets) Delete(currencyName string) *WalletCurrency {
 	w.lastUpdate = time.Now()
-	wallet, ok := w.wallets.LoadAndDelete(symbol)
+	wallet, ok := w.wallets.LoadAndDelete(currencyName)
 
 	if !ok {
 		return nil

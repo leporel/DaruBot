@@ -19,10 +19,10 @@ var (
 	downloadCandles quoteFunc
 
 	supportEvents = watcher.EventsMap{
-		//models.EventError,
+		models.EventError,
 
-		//models.EventTickerState,
-		//models.EventCandleState,
+		models.EventTickerState,
+		models.EventCandleState,
 
 		//models.EventOrderNew,
 		//models.EventOrderFilled,
@@ -46,6 +46,7 @@ type exchange struct {
 	market    string
 	quoteFunc quoteFunc
 	dio       *TheWorld
+	plutos    *Plutos
 
 	ctx context.Context
 	log logger.Logger
@@ -66,9 +67,9 @@ func NewExchangeMock(ctx context.Context,
 	lg logger.Logger,
 	cfg config.Configurations,
 	market string, candlesCache *candles.Cache, quoteF quoteFunc,
-	stand *TheWorld) (exchanges2.CryptoExchange, error) {
+	stand *TheWorld, plutos *Plutos) (exchanges2.CryptoExchange, error) {
 	downloadCandles = quoteF
-	return newExchangeMock(ctx, wManager, lg, cfg, market, candlesCache, stand)
+	return newExchangeMock(ctx, wManager, lg, cfg, market, candlesCache, stand, plutos)
 }
 
 func newExchangeMock(ctx context.Context,
@@ -76,7 +77,7 @@ func newExchangeMock(ctx context.Context,
 	lg logger.Logger,
 	cfg config.Configurations,
 	market string, candlesCache *candles.Cache,
-	stand *TheWorld) (*exchange, error) {
+	stand *TheWorld, plutos *Plutos) (*exchange, error) {
 
 	if !quote.ValidMarket(market) {
 		return nil, errors.New("market not supported")
@@ -90,16 +91,18 @@ func newExchangeMock(ctx context.Context,
 	mc := candlesCache.GetMarket(market, downloadQuote)
 
 	rs := &exchange{
-		market:       market,
-		lastUpdate:   time.Time{},
-		ctx:          ctx,
-		log:          lg.WithPrefix("exchange", "Mock"),
-		cfg:          cfg,
-		ready:        false,
-		readyChan:    make(chan interface{}, 1),
-		watchers:     wManager,
-		cacheCandles: mc,
-		dio:          stand,
+		market:        market,
+		lastUpdate:    time.Time{},
+		ctx:           ctx,
+		log:           lg.WithPrefix("exchange", "Mock"),
+		cfg:           cfg,
+		ready:         false,
+		readyChan:     make(chan interface{}, 1),
+		watchers:      wManager,
+		cacheCandles:  mc,
+		dio:           stand,
+		plutos:        plutos,
+		subscriptions: models.Subscriptions{},
 	}
 
 	return rs, nil
@@ -115,11 +118,55 @@ func (e *exchange) Connect() error {
 }
 
 func (e *exchange) work() {
+	e.plutos.Listen(e.dio.GetChan())
+
 	e.dio.Run()
+
+	for {
+		select {
+		case data := <-e.plutos.GetChan():
+			switch d := data.(type) {
+			case *Ticker:
+				ticker, err := e.GetTicker(d.Symbol)
+				if err != nil {
+					e.emmit(models.EventError, err)
+				}
+				e.emmit(models.EventTickerState, ticker)
+			case *Candle:
+				cndls, err := e.GetCandles(d.Symbol, d.Res, d.Time.Add(-d.Res.ToDuration()), d.Time)
+				if err != nil {
+					e.emmit(models.EventError, err)
+				}
+				cndl := getCandle(cndls, d.Time)
+				e.emmit(models.EventCandleState, cndl)
+			case *models.Order:
+				// TODO new order (executed or placed)
+
+			case *models.WalletCurrency:
+				// TODO wallet state change
+
+			default:
+				e.log.Tracef("unknown type %T", d)
+			}
+		case <-e.ctx.Done():
+			e.Disconnect()
+			return
+		}
+	}
 
 }
 
+func (e *exchange) emmit(eventHead watcher.EventHead, data interface{}) {
+	err := e.watchers.Emmit(watcher.BuildEvent(eventHead, string(exchanges.ExchangeTypeMock), data))
+	if err != nil {
+		e.log.Error(err)
+	}
+}
+
 func (e *exchange) Disconnect() {
+	e.dio.Stop()
+	e.plutos.Stop()
+
 	e.readyChan = make(chan interface{}, 1)
 	e.ready = false
 }
@@ -140,8 +187,13 @@ func (e *exchange) SupportEvents() watcher.EventsMap {
 func (e *exchange) GetTicker(symbol string) (*models.Ticker, error) {
 	e.dio.TimeStop()
 	defer e.dio.TimeStart()
-	curTime := e.dio.CurrentTime()
 
+	ticker, err := e.getTicker(symbol, e.dio.CurrentTime())
+
+	return ticker, err
+}
+
+func (e *exchange) getTicker(symbol string, curTime time.Time) (*models.Ticker, error) {
 	e.log.Tracef("get ticker, time: %s (UTC %s)", quoteFormat(curTime, timeFormat), quoteFormat(curTime.UTC(), timeFormat))
 
 	candle, err := e.getCandle(symbol, models.OneDay, curTime)
@@ -244,22 +296,44 @@ func (e *exchange) GetLastCandle(symbol string, resolution models.CandleResoluti
 }
 
 func (e *exchange) GetSubscriptions() *models.Subscriptions {
-	panic("implement me")
+	return &e.subscriptions
 }
 
 func (e *exchange) SubscribeTicker(symbol string) (subID string, err error) {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	sid := e.plutos.SubscribeTicker(symbol)
+	e.subscriptions.Add(&models.Subscription{
+		ID:     sid,
+		Symbol: symbol,
+		Type:   models.SubTypeTicker,
+	})
+	return sid, nil
 }
 
 func (e *exchange) SubscribeCandles(symbol string, resolution models.CandleResolution) (subID string, err error) {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	sid := e.plutos.SubscribeCandle(symbol, resolution)
+	e.subscriptions.Add(&models.Subscription{
+		ID:     sid,
+		Symbol: symbol,
+		Type:   models.SubTypeCandle,
+	})
+	return sid, nil
 }
 
 func (e *exchange) Unsubscribe(subID string) error {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	err := e.plutos.Unsubscribe(subID)
+	e.subscriptions.Delete(subID)
+	return err
 }
 
 func (e *exchange) CheckSymbol(symbol string, margin bool) error {
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
 	list, err := quote.NewMarketList(e.market)
 	if err != nil {
 		return err
@@ -273,19 +347,36 @@ func (e *exchange) CheckSymbol(symbol string, margin bool) error {
 }
 
 func (e *exchange) GetOrders() ([]*models.Order, error) {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	ords := e.plutos.GetOrders()
+
+	return ords, nil
 }
 
 func (e *exchange) GetPositions() ([]*models.Position, error) {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+	ps := e.plutos.GetPositions()
+
+	return ps, nil
 }
 
 func (e *exchange) GetWallets() ([]*models.Wallets, error) {
-	panic("implement me")
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+
+	ws := e.plutos.GetWallets()
+	return ws, nil
 }
 
-func (e *exchange) GetBalance() (models.BalanceUSD, error) {
-	panic("implement me")
+func (e *exchange) GetBalance() (*models.BalanceUSD, error) {
+	e.dio.TimeStop()
+	defer e.dio.TimeStart()
+
+	rs, err := e.plutos.GetBalance(e.dio.CurrentTime())
+
+	return rs, err
 }
 
 func (e *exchange) HasUpdates(t time.Time) bool {

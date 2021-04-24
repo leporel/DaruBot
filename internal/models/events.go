@@ -32,4 +32,5 @@ type RequestResult struct {
 	Msg   string
 	Err   error
 	Meta  map[string]string
+	Raw   interface{}
 }

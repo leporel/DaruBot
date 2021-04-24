@@ -1,6 +1,7 @@
 package models
 
 import (
+	"math"
 	"strconv"
 	"time"
 )
@@ -19,10 +20,9 @@ type PutOrder struct {
 	InternalID string
 	Symbol     string
 	Type       OrderType
-	Amount     float64
-	// Positive for buy, Negative for sell, ignoring if OrderTypeMarket
-	Price     float64
-	StopPrice float64
+	Amount     float64 // Positive for buy, Negative for sell
+	Price      float64 // ignoring if OrderTypeMarket
+	StopPrice  float64
 
 	Margin bool
 }
@@ -91,4 +91,12 @@ func (o *Order) GetType() OrderType {
 
 func (o *Order) IsFilled() bool {
 	return o.AmountCurrent == 0
+}
+
+func (o *Order) IsSellOrder() bool {
+	if math.Signbit(o.AmountCurrent) {
+		return true
+	}
+
+	return false
 }
