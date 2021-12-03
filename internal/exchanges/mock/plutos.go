@@ -19,13 +19,14 @@ type Plutos struct {
 	getTicker        TickerFunc
 
 	maxLeverage uint8
-	taxFee      float64
+	taxFee      float64 // TODO implement
 	wallets     *models.Wallets
 	positions   []models.Position
 	orders      []models.Order
 
 	currentTime time.Time
 
+	// Fiat money name (e.g. USDT)
 	currency string
 }
 
@@ -75,6 +76,12 @@ func (p *Plutos) Listen(ch <-chan time.Time) {
 						panic(err)
 					}
 				}
+				if len(p.positions) > 0 {
+					if err := p.processPositions(); err != nil {
+						panic(err)
+					}
+				}
+
 			}
 			p.mu.Unlock()
 		default:
@@ -291,12 +298,15 @@ func (p *Plutos) executeOrder(order *models.Order, ticker *models.Ticker) (*mode
 	sell := order.IsSellOrder()
 
 	switch order.Type {
+	case models.OrderTypeMarket:
+		return p.orderApply(order, ticker, sell)
+
 	case models.OrderTypeLimit:
 		if ticker.Price >= order.Price && sell {
-			return p.orderAffect(order, ticker, sell)
+			return p.orderApply(order, ticker, sell)
 		}
 		if ticker.Price <= order.Price && !sell {
-			return p.orderAffect(order, ticker, sell)
+			return p.orderApply(order, ticker, sell)
 		}
 	case models.OrderTypeStop:
 		val, ok := order.Meta["stop_price"]
@@ -305,10 +315,10 @@ func (p *Plutos) executeOrder(order *models.Order, ticker *models.Ticker) (*mode
 		}
 		stopPrice, _ := val.(float64)
 		if ticker.Price <= stopPrice && sell {
-			return p.orderAffect(order, ticker, sell)
+			return p.orderApply(order, ticker, sell)
 		}
 		if ticker.Price >= stopPrice && !sell {
-			return p.orderAffect(order, ticker, sell)
+			return p.orderApply(order, ticker, sell)
 		}
 	default:
 		return nil, fmt.Errorf("order type not supported")
@@ -317,7 +327,7 @@ func (p *Plutos) executeOrder(order *models.Order, ticker *models.Ticker) (*mode
 	return nil, ErrNotExecuted
 }
 
-func (p *Plutos) orderAffect(order *models.Order, ticker *models.Ticker, sell bool) (*models.Order, error) {
+func (p *Plutos) orderApply(order *models.Order, ticker *models.Ticker, sell bool) (*models.Order, error) {
 	order.AmountCurrent = 0
 	order.Updated = p.currentTime
 	order.PriceAvg = ticker.Price
@@ -325,6 +335,8 @@ func (p *Plutos) orderAffect(order *models.Order, ticker *models.Ticker, sell bo
 	walletAsset, walletCurrency := p.relatedWallets(order.Symbol)
 
 	executedCost := order.AmountOriginal * ticker.Price
+
+	// TODO if margin make position
 
 	if sell {
 		walletAsset.Balance = walletAsset.Balance - order.AmountOriginal
@@ -374,4 +386,17 @@ func (p *Plutos) relatedWallets(pair string) (*models.WalletCurrency, *models.Wa
 	}
 
 	return walletAsset, walletCurrency
+}
+
+func (p *Plutos) addPosition() {
+
+}
+
+func (p *Plutos) processPositions() error {
+
+	return nil
+}
+
+func (p *Plutos) positionClose() {
+
 }

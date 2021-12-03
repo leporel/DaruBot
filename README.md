@@ -2,45 +2,53 @@
     <a href="https://github.com/leporel/darubot"><img src="./assets/logo.png" width="850" alt="Website link"></a>
 </p>
 
-# DaruBot
+# Work in progress
 
-Trading bot, uses exchanges API for monitoring price and make decisions to place or close orders
+[comment]: <> (# DaruBot)
 
-## Supports Exchanges
+[comment]: <> (Trading bot, uses exchanges API for monitoring price and make decisions to place or close orders)
 
-* Bitfinex  
-  * Exchange and Margin trading support
+[comment]: <> (## Supports Exchanges)
 
-## Features
+[comment]: <> (* Bitfinex  )
 
-## Instruction
+[comment]: <> (  * Exchange and Margin trading support)
 
-### Install bot
+[comment]: <> (## Features)
 
-## Strategies
+[comment]: <> (## Instruction)
 
-### Default
+[comment]: <> (### Install bot)
 
-dumb strategy, like your 3-year-old sister saw the price chart for the first time
+[comment]: <> (## Strategies)
 
-## Integrations
+[comment]: <> (### Default)
 
-Provide notifications and commands like start/stop, close positions.  
+[comment]: <> (dumb strategy, like your 3-year-old sister saw the price chart for the first time)
 
-| Service          | Description | 
-| - | - |
-| Telegram       |  Notifications <br>  Controls |
+[comment]: <> (## Integrations)
 
-### Telegram
+[comment]: <> (Provide notifications and commands like start/stop, close positions.  )
 
-Make your own bot and provide token
+[comment]: <> (| Service          | Description | )
 
-## Development instructions
+[comment]: <> (| - | - |)
 
-### Contribution 
-Make a new branch from dev branch
-When new feature added or bug fixed, bump it in `VERSION` file.  
-`CHANGELOG.md` contains only new features.  
+[comment]: <> (| Telegram       |  Notifications <br>  Controls |)
+
+[comment]: <> (### Telegram)
+
+[comment]: <> (Make your own bot and provide token)
+
+[comment]: <> (## Development instructions)
+
+[comment]: <> (### Contribution )
+
+[comment]: <> (Make a new branch from dev branch)
+
+[comment]: <> (When new feature added or bug fixed, bump it in `VERSION` file.  )
+
+[comment]: <> (`CHANGELOG.md` contains only new features.  )
 
 
 

@@ -238,11 +238,13 @@ func (e *exchange) getCandle(symbol string, res models.CandleResolution, dioTime
 
 	switch res {
 	case models.OneDay:
-		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day()-5, 0, 0, 0, 0, time.Local)
-		to = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), 23, 59, 59, 0, time.Local)
+		cacheOffset := numbers.NumberRoundTo(dioTime.Day(), 7)
+		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day()-7, 0, 0, 0, 0, time.Local)
+		to = time.Date(dioTime.Year(), dioTime.Month(), cacheOffset, 23, 59, 59, 0, time.Local)
 	case models.OneMinute:
-		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), dioTime.Hour(), dioTime.Minute()-5, 0, 0, time.Local)
-		to = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), dioTime.Hour(), dioTime.Minute()+5, 59, 0, time.Local)
+		cacheOffset := numbers.NumberRoundTo(dioTime.Hour(), 6)
+		from = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), dioTime.Hour()-1, dioTime.Minute()-5, 0, 0, time.Local)
+		to = time.Date(dioTime.Year(), dioTime.Month(), dioTime.Day(), cacheOffset, dioTime.Minute()+5, 59, 0, time.Local)
 	default:
 		return nil, errors.New("period not set")
 	}

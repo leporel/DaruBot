@@ -48,27 +48,6 @@ func (c *cacheCandle) Stop() {
 	}
 }
 
-func newPlutos(w *models.Wallets) *Plutos {
-	ors := make([]models.Order, 0)
-	pos := make([]models.Position, 0)
-
-	if w == nil {
-		w = &models.Wallets{}
-		w.WalletType = models.WalletTypeNone
-		wCur := &models.WalletCurrency{
-			Name:       currency,
-			WalletType: models.WalletTypeNone,
-			Balance:    1000,
-		}
-		if len(pos) == 0 && len(ors) == 0 {
-			wCur.Available = wCur.Balance
-		}
-		w.Update(wCur)
-	}
-
-	return NewPlutos(5, 0.2, currency, w, ors, pos)
-}
-
 func newEx(t *testing.T, level logger.Level, from, to time.Time, p *Plutos) (*exchange, func(), error) {
 	lg := logger.New(os.Stdout, level)
 	ctx, finish := context.WithCancel(context.Background())
@@ -84,7 +63,7 @@ func newEx(t *testing.T, level logger.Level, from, to time.Time, p *Plutos) (*ex
 	cache := newCacheCandles(t, lg)
 
 	if p == nil {
-		p = newPlutos(nil)
+		p = newPlutos(nil, currency)
 	}
 
 	mk, err := newExchangeMock(ctx, wManager, lg, cfg, market, cache.cache, stand, p)
@@ -197,7 +176,7 @@ func TestGetBalance(t *testing.T) {
 		Available:  0.003,
 	})
 
-	p := newPlutos(w)
+	p := newPlutos(w, currency)
 
 	mk, stop, err := newEx(t, logger.TraceLevel, time.Now().Add(-time.Hour*24*2), time.Now(), p)
 	if err != nil {

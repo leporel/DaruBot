@@ -20,6 +20,9 @@ func StrToIntMust(str string) int {
 }
 
 func NumberRoundTo(number, to int) int {
+	if number == 0 {
+		return to
+	}
 	if math.Mod(float64(number), float64(to)) != 0 {
 		if to > 0 {
 			number = number - int(math.Mod(float64(number), float64(to))) + to
