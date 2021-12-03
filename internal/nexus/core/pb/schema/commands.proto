@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "/gen";
+
+package Commands;
+
+service Commander {
+  rpc GetStats (GetStatsRequest) returns (GetStatsReplay) {}
+}
+
+message GetStatsRequest {
+}
+
+message GetStatsReplay {
+}
