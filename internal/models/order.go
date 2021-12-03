@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"math"
+	"strconv"
+	"time"
+)
 
 type OrderType string
 
@@ -13,18 +17,20 @@ const (
 )
 
 type PutOrder struct {
-	Pair   string
-	Type   OrderType
-	Amount float64
-	// Positive for buy, Negative for sell, ignoring if OrderTypeMarket
-	Price     float64
-	StopPrice float64
+	InternalID string
+	Symbol     string
+	Type       OrderType
+	Amount     float64 // Positive for buy, Negative for sell
+	Price      float64 // ignoring if OrderTypeMarket
+	StopPrice  float64
 
 	Margin bool
 }
 
 type Order struct {
 	ID             string
+	Symbol         string
+	InternalID     string
 	Type           OrderType
 	Price          float64
 	PriceAvg       float64
@@ -37,6 +43,34 @@ type Order struct {
 
 func (o *Order) GetID() string {
 	return o.ID
+}
+
+func (o *Order) GetIDAsInt() int64 {
+	if o.ID == "" {
+		return 0
+	}
+
+	id, err := strconv.ParseInt(o.ID, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func (o *Order) GetInternalID() string {
+	return o.InternalID
+}
+
+func (o *Order) GetInternalIDAsInt() int64 {
+	if o.InternalID == "" {
+		return 0
+	}
+
+	id, err := strconv.ParseInt(o.InternalID, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
 }
 
 func (o *Order) GetPrice() float64 {
@@ -53,4 +87,16 @@ func (o *Order) GetOriginalAmount() float64 {
 
 func (o *Order) GetType() OrderType {
 	return o.Type
+}
+
+func (o *Order) IsFilled() bool {
+	return o.AmountCurrent == 0
+}
+
+func (o *Order) IsSellOrder() bool {
+	if math.Signbit(o.AmountCurrent) {
+		return true
+	}
+
+	return false
 }

@@ -1,40 +1,18 @@
 package config
 
 import (
-	"DaruBot/cmd"
+	"DaruBot/pkg/tools/numbers"
 	"os"
 )
 
 type Configurations struct {
-	debugMode  bool
+	debugMode bool
+	Storage   Storage
+
 	Logger     Logger
 	Exchanges  Exchanges
-	Strategies Strategies
-}
-
-var (
-	Config = Configurations{
-		debugMode: cmd.DebugMode,
-		Logger: Logger{
-			FileOutput: false,
-		},
-		Exchanges: Exchanges{
-			BitFinex: BitFinex{
-				ApiKey:   os.Getenv("API_KEY"),
-				ApiSec:   os.Getenv("API_SEC"),
-				Strategy: "DaruStonks",
-			},
-		},
-		Strategies: Strategies{
-			DaruStonks: DaruStonks{
-				Pair:   "tTESTBTC:TESTUSD",
-				Margin: false,
-			}},
-	}
-)
-
-func (c Configurations) IsDebug() bool {
-	return c.debugMode
+	Strategies map[string]interface{}
+	Nexus      Nexus
 }
 
 type Logger struct {
@@ -42,13 +20,18 @@ type Logger struct {
 }
 
 type Exchanges struct {
-	BitFinex BitFinex
+	Bitfinex Bitfinex
 }
 
-type BitFinex struct {
-	ApiKey   string
-	ApiSec   string
-	Strategy string
+type Bitfinex struct {
+	ApiKey    string `mapstructure:",omitempty" yaml:",omitempty"`
+	ApiSec    string `mapstructure:",omitempty" yaml:",omitempty"`
+	Strategy  string
+	affiliate string
+}
+
+func (b *Bitfinex) Affiliate() string {
+	return b.affiliate
 }
 
 type DaruStonks struct {
@@ -56,6 +39,107 @@ type DaruStonks struct {
 	Margin bool
 }
 
-type Strategies struct {
-	DaruStonks DaruStonks
+type Nexus struct {
+	Modules Modules
+	TLS     TLSCert
+	Proxy   Proxy
+}
+
+type Modules struct {
+	Telegram Telegram
+}
+
+type Telegram struct {
+	Enabled     bool
+	WebhookMode bool
+	CustomCert  bool
+	APIKey      string `mapstructure:",omitempty" yaml:",omitempty"`
+	GroupID     int    `mapstructure:",omitempty" yaml:",omitempty"`
+	UserID      int    `mapstructure:",omitempty" yaml:",omitempty"`
+}
+
+type TLSCert struct {
+	Url      string `mapstructure:",omitempty" yaml:",omitempty"`
+	KeyFile  string
+	CertFile string
+}
+
+type Proxy struct {
+	Addr string `mapstructure:",omitempty" yaml:",omitempty"`
+}
+
+type Storage struct {
+	Local StorageLocal
+}
+
+type StorageLocal struct {
+	Path string
+}
+
+var (
+	defaultConfig = Configurations{
+		debugMode: true,
+		Logger: Logger{
+			FileOutput: false,
+		},
+		Exchanges: Exchanges{
+			Bitfinex: Bitfinex{
+				ApiKey:    "",
+				ApiSec:    "",
+				Strategy:  "",
+				affiliate: "jXAX6tEPA",
+			},
+		},
+		Strategies: make(map[string]interface{}),
+		Nexus: Nexus{
+			Modules: Modules{
+				Telegram{
+					Enabled:     false,
+					WebhookMode: false,
+					CustomCert:  false,
+					APIKey:      "",
+					GroupID:     0,
+					UserID:      0,
+				},
+			},
+			TLS: TLSCert{
+				Url:      "",
+				KeyFile:  "",
+				CertFile: "",
+			},
+			Proxy: Proxy{
+				Addr: "",
+			},
+		},
+		Storage: Storage{
+			Local: StorageLocal{
+				Path: "./storage.db",
+			},
+		},
+	}
+)
+
+func (c *Configurations) IsDebug() bool {
+	return c.debugMode
+}
+
+func (c *Configurations) SetDebug(enable bool) {
+	c.debugMode = enable
+}
+
+func GetDefaultConfig() Configurations {
+	cfg := defaultConfig
+
+	cfg.Exchanges.Bitfinex.ApiKey = os.Getenv("BITFINEX_API_KEY")
+	cfg.Exchanges.Bitfinex.ApiSec = os.Getenv("BITFINEX_API_SEC")
+
+	cfg.Nexus.Modules.Telegram.APIKey = os.Getenv("TG_API_KEY")
+	cfg.Nexus.Modules.Telegram.GroupID = numbers.StrToIntMust(os.Getenv("TG_GROUP_ID"))
+	cfg.Nexus.Modules.Telegram.UserID = numbers.StrToIntMust(os.Getenv("TG_USER_ID"))
+
+	cfg.Nexus.TLS.Url = os.Getenv("TLS_HOST")
+
+	cfg.Nexus.Proxy.Addr = os.Getenv("PROXY_ADDR")
+
+	return cfg
 }

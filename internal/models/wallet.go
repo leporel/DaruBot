@@ -2,11 +2,12 @@ package models
 
 import (
 	"sync"
+	"time"
 )
 
 type BalanceUSD struct {
-	Total    float64
-	NetWorth float64
+	Total    float64 // available usd
+	NetWorth float64 // all stock and positions worth in usd and available usd
 }
 
 type WalletType uint8
@@ -27,14 +28,16 @@ type WalletCurrency struct {
 type Wallets struct {
 	WalletType WalletType
 	wallets    sync.Map
+	lastUpdate time.Time
 }
 
-func (w *Wallets) Add(wallet *WalletCurrency) {
+func (w *Wallets) Update(wallet *WalletCurrency) {
 	w.wallets.Store(wallet.Name, wallet)
+	w.lastUpdate = time.Now()
 }
 
-func (w *Wallets) Get(currency string) *WalletCurrency {
-	wallet, ok := w.wallets.Load(currency)
+func (w *Wallets) Get(currencyName string) *WalletCurrency {
+	wallet, ok := w.wallets.Load(currencyName)
 
 	if !ok {
 		return nil
@@ -43,8 +46,9 @@ func (w *Wallets) Get(currency string) *WalletCurrency {
 	return wallet.(*WalletCurrency)
 }
 
-func (w *Wallets) Delete(currency string) *WalletCurrency {
-	wallet, ok := w.wallets.LoadAndDelete(currency)
+func (w *Wallets) Delete(currencyName string) *WalletCurrency {
+	w.lastUpdate = time.Now()
+	wallet, ok := w.wallets.LoadAndDelete(currencyName)
 
 	if !ok {
 		return nil
@@ -62,4 +66,13 @@ func (w *Wallets) GetAll() []*WalletCurrency {
 	})
 
 	return rs
+}
+
+func (w *Wallets) Clear() {
+	w.wallets = sync.Map{}
+	w.lastUpdate = time.Now()
+}
+
+func (w *Wallets) LastUpdate() time.Time {
+	return w.lastUpdate
 }

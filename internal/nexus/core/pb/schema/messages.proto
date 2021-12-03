@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+option go_package = "/gen";
+
+import "google/protobuf/timestamp.proto";
+
+package Messages;
+
+//message Events {
+//  oneof payload {
+//
+//  }
+//}
+
+enum LogLevel {
+  PANIC = 0;
+  FATAL = 1;
+  ERROR = 2;
+  WARNING = 3;
+  INFO = 4;
+  DEBUG = 5;
+  TRACE = 6;
+}
+
+message Log {
+  LogLevel level = 1;
+  google.protobuf.Timestamp time = 2;
+  string message = 3;
+}
+

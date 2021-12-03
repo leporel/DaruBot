@@ -1,8 +1,10 @@
 package models
 
+import "strconv"
+
 type Position struct {
 	ID                   string
-	Pair                 string
+	Symbol               string
 	Price                float64
 	Amount               float64
 	LiqPrice             float64
@@ -14,6 +16,17 @@ type Position struct {
 
 func (p *Position) GetID() string {
 	return p.ID
+}
+
+func (p *Position) GetIDAsInt() int64 {
+	if p.ID == "" {
+		return 0
+	}
+	id, err := strconv.ParseInt(p.ID, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
 }
 
 func (p *Position) GetPrice() float64 {
