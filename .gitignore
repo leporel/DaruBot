@@ -5,3 +5,4 @@ assets/certs/key.pem
 /test_data/
 /DaruBot.exe
 /DaruBot
+.vscode/
