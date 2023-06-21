@@ -8,11 +8,12 @@ import (
 	"DaruBot/pkg/watcher"
 	"context"
 	"fmt"
-	"github.com/markcheno/go-quote"
-	"github.com/sanity-io/litter"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/markcheno/go-quote"
+	"github.com/sanity-io/litter"
 )
 
 var (
@@ -54,7 +55,7 @@ func newEx(t *testing.T, level logger.Level, from, to time.Time, p *Plutos) (*ex
 
 	wManager := watcher.NewWatcherManager()
 
-	stand := NewTheWorld(from, to, 1*time.Millisecond)
+	stand := NewDio(from, to, 1*time.Millisecond)
 
 	cfg := config.GetDefaultConfig()
 

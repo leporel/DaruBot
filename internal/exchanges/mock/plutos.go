@@ -3,10 +3,11 @@ package mock
 import (
 	"DaruBot/internal/models"
 	"fmt"
-	"github.com/google/uuid"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type TickerFunc func(symbol string, curTime time.Time) (*models.Ticker, error)
@@ -70,7 +71,7 @@ func (p *Plutos) Listen(ch <-chan time.Time) {
 			p.SubscribeManager.trigger(t, p.channel)
 			p.currentTime = t
 
-			if checkResTiming(1*time.Minute, t) {
+			if checkResolutionInterval(1*time.Minute, t) {
 				if len(p.orders) > 0 {
 					if err := p.processOrders(); err != nil {
 						panic(err)

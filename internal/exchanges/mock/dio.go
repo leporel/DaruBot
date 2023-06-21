@@ -6,100 +6,117 @@ import (
 	"time"
 )
 
-type TheWorld struct {
-	lock *sync.Mutex
+const (
+	stepInterval = time.Minute
+)
 
-	timePass time.Duration
-	from     time.Time
-	to       time.Time
-	tick     time.Duration
+// Dio Implement time simulation
+type Dio struct {
+	lock  *sync.Mutex
+	pause *sync.Mutex
+
+	from, to, current time.Time
+	tick              time.Duration
 
 	ch   chan time.Time
-	wait chan interface{}
-
-	work bool
+	inProgress bool
+	exit chan interface{}
 }
 
-func NewTheWorld(from, to time.Time, tick time.Duration) *TheWorld {
-	max := to.Sub(from)
-	lock := &sync.Mutex{}
-
-	stand := &TheWorld{
-		lock:     lock,
-		timePass: 0,
+// NewDio create new time emulation instance
+func NewDio(from, to time.Time, tick time.Duration) *Dio {
+	stand := &Dio{
+		lock:     &sync.Mutex{},
+		pause:    &sync.Mutex{},
 		from:     from,
 		to:       to,
+		current:  from,
 		tick:     tick,
 		ch:       nil,
-		wait:     make(chan interface{}, 1),
-		work:     false,
+		inProgress:     false,
+		exit:     make(chan interface{}, 1),
 	}
-
-	lock.Lock()
-
-	go func() {
-		<-stand.wait
-		fmt.Println("MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA!!!!")
-		for {
-			if stand.work == false {
-				return
-			}
-			lock.Lock()
-			time.Sleep(stand.tick)
-			if stand.timePass > max {
-				return
-			}
-			stand.timePass = stand.timePass + time.Minute
-			if stand.ch != nil {
-				stand.ch <- stand.CurrentTime()
-			}
-			lock.Unlock()
-		}
-	}()
 
 	return stand
 }
 
-func (w *TheWorld) Run() {
-	if w.wait != nil {
-		close(w.wait)
-		w.wait = nil
-		w.work = true
+func (w *Dio) Run() {
+	if !w.inProgress {
+		go func() {
+			w.inProgress = true
+			fmt.Println("MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA MUDA!!!!")
+			for {
+				select {
+				case <-w.exit:
+					return
+				default:
+					w.pause.Lock() // FIXME change to waitGroup
+					time.Sleep(w.tick)
+					if w.current.After(w.to) {
+						w.Done()
+					}
+					w.addStep(stepInterval)
+	
+					if w.ch != nil {
+						w.ch <- w.Time()
+					}
+					w.pause.Unlock()
+				}
+			}
+		}()
 	}
-	w.TimeStart()
+	if w.current.After(w.to) {
+		panic("Dio cant run him self again, create new Dio")
+	}
 }
 
-func (w *TheWorld) Stop() {
-	w.work = false
+func (w *Dio) addStep(interval time.Duration) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	w.current = w.current.Add(interval)
 }
 
-func (w *TheWorld) SetTick(tick time.Duration) {
+func (w *Dio) Done() {
+	if !w.inProgress {
+		return
+	}
+	w.exit <- struct{}{}
+}
+
+func (w *Dio) SetTick(tick time.Duration) {
 	w.tick = tick
 }
 
-// TimeStart Zero
-func (w *TheWorld) TimeStart() {
-	if w.wait != nil {
+// TimeStart continue time traveling
+// Zero...
+func (w *Dio) Continue() {
+	if !w.inProgress {
 		return
 	}
-	w.lock.Unlock()
+	w.pause.TryLock()
+	w.pause.Unlock()
 }
 
-// TimeStop ZA WARUDO!!!!
-func (w *TheWorld) TimeStop() {
-	if w.wait != nil {
+// TimeStop freeze time traveling
+// ZA WARUDO!!!!
+func (w *Dio) Pause() {
+	if !w.inProgress {
 		return
 	}
-	w.lock.Lock()
+	w.pause.Lock()
 }
 
-func (w *TheWorld) GetChan() <-chan time.Time {
+func (w *Dio) GetChan() <-chan time.Time {
 	if w.ch == nil {
 		w.ch = make(chan time.Time, 1)
 	}
 	return w.ch
 }
 
-func (w *TheWorld) CurrentTime() time.Time {
-	return w.from.Add(w.timePass)
+// Time return current time
+func (w *Dio) Time() time.Time {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return w.current
 }

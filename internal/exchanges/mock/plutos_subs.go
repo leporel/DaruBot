@@ -3,8 +3,9 @@ package mock
 import (
 	"DaruBot/internal/models"
 	"fmt"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Ticker struct {
@@ -43,7 +44,7 @@ func (p *subscribeManager) trigger(t time.Time, ch chan interface{}) {
 				p.seconds = 0
 			}
 		case models.SubTypeCandle:
-			if checkResTiming(s.sRes.ToDuration(), t) {
+			if checkResolutionInterval(s.sRes.ToDuration(), t) {
 				ch <- &Candle{
 					Time:   t,
 					Symbol: s.symbol,

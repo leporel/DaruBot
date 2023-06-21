@@ -64,7 +64,7 @@ func downloadQuote(from, to time.Time, symbol string, resolution models.CandleRe
 	return cndls, nil
 }
 
-func checkResTiming(d time.Duration, t time.Time) bool {
+func checkResolutionInterval(d time.Duration, t time.Time) bool {
 	switch {
 	case math.Mod(float64(t.Unix()), d.Seconds()) == 0:
 		return true
